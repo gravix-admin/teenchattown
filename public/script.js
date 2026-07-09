@@ -258,6 +258,7 @@ async function bootstrap() {
   state.notifications = data.notifications || [];
   state.friendRequests = data.friendRequests || [];
   state.rankBadges = data.rankBadges || {};
+  state.unreadPm = Number(data.unreadPm || 0);
   state.currentRoomId = state.currentRoomId || state.rooms[0]?.id;
   $("#authScreen").classList.add("hidden");
   $("#app").classList.remove("hidden");
@@ -406,7 +407,7 @@ function renderMessages() {
         </button>
         <div class="message-card" style="--message-color:${html(user.textColor || "#fbf7ff")}">
           <div class="message-topline">
-            <div class="message-meta"><button class="message-author" data-message-profile="${message.user_id}" type="button" style="${user.usernameColor ? `color:${html(user.usernameColor)}` : ""}">${html(user.username)}</button>${userRankBadge(user)}<time>${formatTime(message.created_at)}</time>${message.is_pinned ? '<span class="rank-pill">PIN</span>' : ""}</div>
+            <div class="message-meta"><button class="message-author" data-tag-user="${html(user.username)}" type="button" style="${user.usernameColor ? `color:${html(user.usernameColor)}` : ""}">${html(user.username)}</button>${userRankBadge(user)}<time>${formatTime(message.created_at)}</time>${message.is_pinned ? '<span class="rank-pill">PIN</span>' : ""}</div>
             <div class="message-menu-wrap">
               <button class="message-menu-button" data-message-menu="${message.id}" type="button" title="Message options"><svg viewBox="0 0 24 24"><path d="M6 12a2 2 0 1 0-4 0 2 2 0 0 0 4 0Zm8 0a2 2 0 1 0-4 0 2 2 0 0 0 4 0Zm8 0a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z"/></svg></button>
               <div class="message-menu hidden" data-menu-for="${message.id}">
@@ -482,6 +483,17 @@ function bindMessageActions() {
   $$("[data-message-profile]", $("#messages")).forEach((button) => button.addEventListener("click", () => {
     closeMessageMenus();
     openProfile(Number(button.dataset.messageProfile)).catch((error) => toast(error.message));
+  }));
+  $$("[data-tag-user]", $("#messages")).forEach((button) => button.addEventListener("click", () => {
+    const username = button.dataset.tagUser;
+    if (!username || username === state.me?.username) return;
+    const input = $("#messageInput");
+    const tag = `@${username}`;
+    if (!input.value.toLowerCase().includes(tag.toLowerCase())) {
+      input.value = `${tag} ${input.value}`.trimEnd();
+    }
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
   }));
   $$("[data-reply]").forEach((button) => button.addEventListener("click", () => {
     closeMessageMenus();
@@ -687,6 +699,13 @@ async function loadFriends() {
   setBadges();
 }
 
+async function refreshPmUnread() {
+  const data = await api("/api/chat/private-unread-count");
+  state.unreadPm = Number(data.count || 0);
+  setBadges();
+  return state.unreadPm;
+}
+
 function renderFriends() {
   $("#friendRequests").innerHTML = state.friendRequests.map((request) => `
     <div class="request-row"><img class="avatar" src="${html(request.avatar_url || "/assets/avatar-other.svg")}" alt="" /><span><strong>${html(request.username)}</strong><small>${html(request.rank_name)}</small></span><span><button data-accept="${request.id}">Accept</button><button data-decline="${request.id}">Decline</button></span></div>
@@ -753,6 +772,7 @@ async function openReportQueueDrawer() {
 }
 
 async function openProfile(userId) {
+  $("#drawer")?.classList.add("hidden");
   const data = await api(`/api/social/profiles/${userId}`);
   const user = data.user;
   const self = Number(user.id) === Number(state.me.id);
@@ -1486,7 +1506,10 @@ function openPm(userId, fallbackUser = null) {
       <div class="pm-head">
         <img class="avatar" src="${html(avatar(user))}" alt="" />
         <span><strong>${html(displayName(user))}</strong><small>${userRankBadge(user)}</small></span>
-        <button class="pm-head-action" data-view-profile="${user.id}" type="button" title="View profile">View</button>
+        <span class="pm-head-actions">
+          <button class="pm-head-action" data-pm-inbox type="button" title="Back to private messages">Inbox</button>
+          <button class="pm-head-action" data-view-profile="${user.id}" type="button" title="View profile">View</button>
+        </span>
       </div>
       <div id="pmThread" class="pm-thread"></div>
       <input id="pmAttachment" class="hidden" type="file" accept="image/*" />
@@ -1510,6 +1533,10 @@ function openPm(userId, fallbackUser = null) {
     if (!state.pmUploadFile) return;
     $("#pmUploadPreview").innerHTML = `<span>${html(state.pmUploadFile.name)}</span>`;
     $("#pmUploadPreview").classList.remove("hidden");
+  });
+  $("[data-pm-inbox]", $("#drawerBody")).addEventListener("click", () => {
+    state.activePmUserId = null;
+    openPmConversations().catch((error) => toast(error.message));
   });
   $("[data-view-profile]", $("#drawerBody")).addEventListener("click", () => openProfile(numericUserId));
   $("#pmForm").addEventListener("submit", async (event) => {
@@ -1535,6 +1562,7 @@ function openPm(userId, fallbackUser = null) {
 
 async function loadPm(userId) {
   const rows = await api(`/api/chat/private-messages/${userId}`);
+  refreshPmUnread().catch(() => {});
   $("#pmThread").innerHTML = rows.map((row) => `
     <div class="pm-message ${Number(row.sender_id) === Number(state.me.id) ? "own" : ""}">
       <span><strong>${html(row.sender_username)}</strong><small>${formatTime(row.created_at)}${row.read_at ? " | seen" : ""}</small></span>
@@ -1553,9 +1581,7 @@ async function loadPm(userId) {
 }
 
 async function openPmConversations() {
-  state.unreadPm = 0;
   state.activePmUserId = null;
-  setBadges();
   $("#drawer").classList.remove("account-drawer");
   $("#drawer").classList.remove("user-drawer");
   $("#drawerTitle").textContent = "Private messages";
@@ -1580,12 +1606,13 @@ async function openPmConversations() {
             avatar_url: item.avatar_url,
             gender: item.gender,
           };
+          const unreadCount = Number(item.unread_count || 0);
           return `
-            <button class="pm-conversation" data-pm-open="${item.id}" type="button">
+            <button class="pm-conversation ${unreadCount > 0 ? "unread" : ""}" data-pm-open="${item.id}" type="button">
               <span class="status ${isOnline(userById(item.id)) ? "" : "offline"}"></span>
               <img class="avatar" src="${html(avatar(user))}" alt="" />
               <span><strong>${html(displayName(user))}</strong><small>${html(item.last_body || "Image")}</small></span>
-              ${Number(item.unread_count || 0) > 0 ? `<em>${Number(item.unread_count)}</em>` : ""}
+              ${unreadCount > 0 ? `<em><i></i>${unreadCount}</em>` : ""}
             </button>
           `;
         }).join("") || `<div class="pm-empty"><strong>${recentUnavailable ? "Recent chats unavailable" : "No private chats yet"}</strong><span>Pick someone below to start texting.</span></div>`}
@@ -1636,9 +1663,12 @@ async function openPmConversations() {
   try {
     const rows = await api("/api/chat/private-conversations");
     if (state.activePmUserId) return;
+    state.unreadPm = rows.reduce((total, item) => total + Number(item.unread_count || 0), 0);
+    setBadges();
     renderPmDirectory(rows);
   } catch (error) {
     if (state.activePmUserId) return;
+    refreshPmUnread().catch(() => {});
     renderPmDirectory([], true);
   }
 }
@@ -1777,8 +1807,13 @@ function connectEvents() {
       loadPm(state.activePmUserId).catch(() => {});
       return;
     }
-    state.unreadPm += 1;
-    setBadges();
+    refreshPmUnread().catch(() => {
+      state.unreadPm += 1;
+      setBadges();
+    });
+    if (!state.activePmUserId && !$("#drawer").classList.contains("hidden") && $("#drawerTitle").textContent === "Private messages") {
+      openPmConversations().catch(() => {});
+    }
   });
   state.eventSource.addEventListener("moderation", (event) => {
     const data = JSON.parse(event.data);
@@ -1793,6 +1828,7 @@ function connectEvents() {
     state.me = data.me;
     state.users = data.users;
     state.notifications = data.notifications || state.notifications;
+    state.unreadPm = Number(data.unreadPm || state.unreadPm || 0);
     renderUsers();
     renderProfiles();
     if ($("#leaderboardView").classList.contains("active")) renderLeaderboard().catch((error) => toast(error.message));
