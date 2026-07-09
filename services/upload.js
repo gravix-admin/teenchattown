@@ -25,4 +25,11 @@ function imageUpload(folder) {
   });
 }
 
-module.exports = { imageUpload };
+function fileToDataUrl(file) {
+  if (!file) return null;
+  const data = fs.readFileSync(file.path).toString("base64");
+  fs.unlink(file.path, () => {});
+  return `data:${file.mimetype};base64,${data}`;
+}
+
+module.exports = { imageUpload, fileToDataUrl };
