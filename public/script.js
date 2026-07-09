@@ -17,6 +17,7 @@ const state = {
   pmUploadFile: null,
   userTab: "all",
   unreadPm: 0,
+  unreadNews: localStorage.getItem("tct_news_unread") === "1",
   leaderboardTab: "xp",
   compactLayout: null,
 };
@@ -162,7 +163,10 @@ function setView(view) {
   $(`#${view}View`)?.classList.add("active");
   $$(".side-nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   if (view === "rooms") renderRoomGrid();
-  if (view === "news") renderNews().catch((error) => toast(error.message));
+  if (view === "news") {
+    clearNewsUnread();
+    renderNews().catch((error) => toast(error.message));
+  }
   if (view === "leaderboard") renderLeaderboard().catch((error) => toast(error.message));
 }
 
@@ -170,12 +174,30 @@ function setBadges() {
   setBadge($("#friendBadge"), state.friendRequests.length);
   setBadge($("#notificationBadge"), state.notifications.filter((item) => !item.is_read).length);
   setBadge($("#pmBadge"), state.unreadPm || 0);
+  setNewsDot(state.unreadNews);
 }
 
 function setBadge(node, count) {
   if (!node) return;
   node.textContent = count > 0 ? String(count) : "";
   node.classList.toggle("hidden", count <= 0);
+}
+
+function setNewsDot(active) {
+  $("#newsBadge")?.classList.toggle("hidden", !active);
+  $("#newsTitleDot")?.classList.toggle("hidden", !active);
+}
+
+function markNewsUnread() {
+  state.unreadNews = true;
+  localStorage.setItem("tct_news_unread", "1");
+  setBadges();
+}
+
+function clearNewsUnread() {
+  state.unreadNews = false;
+  localStorage.removeItem("tct_news_unread");
+  setBadges();
 }
 
 function applyTheme(theme = "dark") {
@@ -376,12 +398,15 @@ function renderMessages() {
     const isOwn = Number(message.user_id) === Number(state.me.id);
     const canModify = isOwn || staffRanks.has(state.me.rank);
     const reactions = parseReactions(message.reactions);
+    const bubbleClass = ["vip", "premium"].includes(user.bubbleStyle) ? ` bubble-${user.bubbleStyle}` : "";
     return `
-      <article class="message" data-message-id="${message.id}">
-        <img class="avatar" src="${html(avatar(user))}" alt="" />
+      <article class="message ${isOwn ? "own" : ""}${bubbleClass}" data-message-id="${message.id}">
+        <button class="message-avatar-button" data-message-profile="${message.user_id}" type="button" title="View profile">
+          <img class="avatar" src="${html(avatar(user))}" alt="" />
+        </button>
         <div class="message-card" style="--message-color:${html(user.textColor || "#fbf7ff")}">
           <div class="message-topline">
-            <div class="message-meta"><button class="message-author" data-tag-user="${html(user.username)}" type="button" style="${user.usernameColor ? `color:${html(user.usernameColor)}` : ""}">${html(user.username)}</button>${userRankBadge(user)}<time>${formatTime(message.created_at)}</time>${message.is_pinned ? '<span class="rank-pill">PIN</span>' : ""}</div>
+            <div class="message-meta"><button class="message-author" data-message-profile="${message.user_id}" type="button" style="${user.usernameColor ? `color:${html(user.usernameColor)}` : ""}">${html(user.username)}</button>${userRankBadge(user)}<time>${formatTime(message.created_at)}</time>${message.is_pinned ? '<span class="rank-pill">PIN</span>' : ""}</div>
             <div class="message-menu-wrap">
               <button class="message-menu-button" data-message-menu="${message.id}" type="button" title="Message options"><svg viewBox="0 0 24 24"><path d="M6 12a2 2 0 1 0-4 0 2 2 0 0 0 4 0Zm8 0a2 2 0 1 0-4 0 2 2 0 0 0 4 0Zm8 0a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z"/></svg></button>
               <div class="message-menu hidden" data-menu-for="${message.id}">
@@ -454,16 +479,9 @@ function bindMessageActions() {
     menu.classList.toggle("hidden", !wasHidden);
   }));
   $$(".message-menu").forEach((menu) => menu.addEventListener("click", () => closeMessageMenus()));
-  $$("[data-tag-user]").forEach((button) => button.addEventListener("click", () => {
-    const username = button.dataset.tagUser;
-    if (!username || username === state.me?.username) return;
-    const input = $("#messageInput");
-    const tag = `@${username}`;
-    if (!input.value.toLowerCase().includes(tag.toLowerCase())) {
-      input.value = `${tag} ${input.value}`.trimEnd();
-    }
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
+  $$("[data-message-profile]", $("#messages")).forEach((button) => button.addEventListener("click", () => {
+    closeMessageMenus();
+    openProfile(Number(button.dataset.messageProfile)).catch((error) => toast(error.message));
   }));
   $$("[data-reply]").forEach((button) => button.addEventListener("click", () => {
     closeMessageMenus();
@@ -544,7 +562,10 @@ function renderUsers() {
       ${renderUserRows(offline, true)}
     </section>
   `;
-  $$("[data-user-id]").forEach((button) => button.addEventListener("click", () => openUserActions(Number(button.dataset.userId))));
+  $$("[data-user-id]").forEach((button) => button.addEventListener("click", () => {
+    $("#drawer").classList.add("hidden");
+    openProfile(Number(button.dataset.userId)).catch((error) => toast(error.message));
+  }));
 }
 
 function renderUserRows(list, offline = false) {
@@ -595,6 +616,7 @@ function renderVip() {
 }
 
 async function renderNews() {
+  if ($("#newsView").classList.contains("active")) clearNewsUnread();
   const posts = await api("/api/social/news");
   $("#newsList").innerHTML = posts.map((post) => `
     <article class="news-card">
@@ -1452,10 +1474,12 @@ async function moderate(userId, action, extra = {}) {
 }
 
 function openPm(userId, fallbackUser = null) {
-  const user = userById(userId) || fallbackUser;
+  const numericUserId = Number(userId);
+  if (!numericUserId || numericUserId === Number(state.me.id)) return toast("Choose another user to message.");
+  const user = userById(numericUserId) || fallbackUser;
   if (!user) return toast("User not found.");
   if ($("#profileModal").open) $("#profileModal").close();
-  state.activePmUserId = Number(userId);
+  state.activePmUserId = numericUserId;
   state.pmUploadFile = null;
   $("#drawer").classList.remove("account-drawer");
   $("#drawer").classList.remove("user-drawer");
@@ -1479,7 +1503,7 @@ function openPm(userId, fallbackUser = null) {
     </div>
   `;
   $("#drawer").classList.remove("hidden");
-  loadPm(userId).catch((error) => {
+  loadPm(numericUserId).catch((error) => {
     $("#pmThread").innerHTML = `<p class="muted">${html(error.message)}</p>`;
   });
   $("#pmEmojiButton").addEventListener("click", (event) => openEmojiPicker("#pmInput", event.currentTarget));
@@ -1490,13 +1514,13 @@ function openPm(userId, fallbackUser = null) {
     $("#pmUploadPreview").innerHTML = `<span>${html(state.pmUploadFile.name)}</span>`;
     $("#pmUploadPreview").classList.remove("hidden");
   });
-  $("[data-view-profile]", $("#drawerBody")).addEventListener("click", () => openProfile(userId));
+  $("[data-view-profile]", $("#drawerBody")).addEventListener("click", () => openProfile(numericUserId));
   $("#pmForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const body = $("#pmInput").value.trim();
     if (!body && !state.pmUploadFile) return;
     const form = new FormData();
-    form.append("receiverId", userId);
+    form.append("receiverId", numericUserId);
     form.append("body", body);
     if (state.pmUploadFile) form.append("attachment", state.pmUploadFile);
     try {
@@ -1505,7 +1529,7 @@ function openPm(userId, fallbackUser = null) {
       state.pmUploadFile = null;
       $("#pmAttachment").value = "";
       $("#pmUploadPreview").classList.add("hidden");
-      await loadPm(userId);
+      await loadPm(numericUserId);
     } catch (error) {
       toast(error.message);
     }
@@ -1544,8 +1568,8 @@ async function openPmConversations() {
     const conversationIds = new Set(rows.map((item) => Number(item.id)));
     const startUsers = state.users
       .filter((user) => Number(user.id) !== Number(state.me.id) && visibleInUserList(user))
-      .sort((a, b) => Number(isOnline(b)) - Number(isOnline(a)) || displayName(a).localeCompare(displayName(b)))
-      .slice(0, 24);
+      .sort((a, b) => Number(isOnline(b)) - Number(isOnline(a)) || displayName(a).localeCompare(displayName(b)));
+    const userFallbacks = new Map(startUsers.map((user) => [Number(user.id), user]));
     $("#drawerBody").innerHTML = `
       <div class="pm-inbox">
         <div class="pm-section-title"><span>Ongoing texts</span><small>${rows.length || "none"}</small></div>
@@ -1568,19 +1592,31 @@ async function openPmConversations() {
             </button>
           `;
         }).join("") || '<div class="pm-empty"><strong>No private chats yet</strong><span>Pick someone below to start one.</span></div>'}
-        <details class="pm-start" ${rows.length ? "" : "open"}>
-          <summary>Start private message</summary>
-          <div class="pm-start-list">
-            ${startUsers.map((user) => `
-              <button class="pm-conversation pm-start-user ${conversationIds.has(Number(user.id)) ? "existing" : ""}" data-pm-start="${user.id}" type="button">
-                <span class="status ${isOnline(user) ? "" : "offline"}"></span>
-                <img class="avatar" src="${html(avatar(user))}" alt="" />
-                <span><strong>${html(displayName(user))}</strong><small>${userRankBadge(user)}</small></span>
-              </button>
-            `).join("") || '<p class="muted">No users available to message.</p>'}
-          </div>
-        </details>
+        <section class="pm-start-panel">
+          <div class="pm-section-title"><span>Start a text</span><small>${startUsers.length || "none"}</small></div>
+          <input id="pmUserSearch" class="pm-user-search" placeholder="Search people..." autocomplete="off" />
+          <div class="pm-start-list" id="pmStartList"></div>
+        </section>
       </div>`;
+    const renderStartUsers = () => {
+      const query = ($("#pmUserSearch")?.value || "").trim().toLowerCase();
+      const filtered = startUsers
+        .filter((user) => {
+          const label = `${displayName(user)} ${user.username || ""}`.toLowerCase();
+          return !query || label.includes(query);
+        })
+        .slice(0, 80);
+      $("#pmStartList").innerHTML = filtered.map((user) => `
+        <button class="pm-conversation pm-start-user ${conversationIds.has(Number(user.id)) ? "existing" : ""}" data-pm-start="${user.id}" type="button">
+          <span class="status ${isOnline(user) ? "" : "offline"}"></span>
+          <img class="avatar" src="${html(avatar(user))}" alt="" />
+          <span><strong>${html(displayName(user))}</strong><small>${userRankBadge(user)}</small></span>
+        </button>
+      `).join("") || '<p class="muted">No users available to message.</p>';
+      $$("[data-pm-start]", $("#drawerBody")).forEach((button) => button.addEventListener("click", () => {
+        openPm(button.dataset.pmStart, userFallbacks.get(Number(button.dataset.pmStart)));
+      }));
+    };
     $$("[data-pm-open]", $("#drawerBody")).forEach((button) => {
       const item = rows.find((row) => Number(row.id) === Number(button.dataset.pmOpen));
       const fallback = item ? {
@@ -1594,7 +1630,9 @@ async function openPmConversations() {
       } : null;
       button.addEventListener("click", () => openPm(button.dataset.pmOpen, fallback));
     });
-    $$("[data-pm-start]", $("#drawerBody")).forEach((button) => button.addEventListener("click", () => openPm(button.dataset.pmStart)));
+    $("#pmUserSearch")?.addEventListener("input", renderStartUsers);
+    renderStartUsers();
+    $("#pmUserSearch")?.focus();
   } catch (error) {
     $("#drawerBody").innerHTML = `<p class="muted">${html(error.message)}</p>`;
   }
@@ -1777,8 +1815,14 @@ function connectEvents() {
   state.eventSource.addEventListener("reaction", loadMessages);
   state.eventSource.addEventListener("message-pinned", loadMessages);
   state.eventSource.addEventListener("rooms-changed", bootstrap);
-  state.eventSource.addEventListener("news-posted", () => {
-    if ($("#newsView").classList.contains("active")) renderNews().catch((error) => toast(error.message));
+  state.eventSource.addEventListener("news-posted", (event) => {
+    const data = JSON.parse(event.data || "{}");
+    const newsIsOpen = $("#newsView").classList.contains("active");
+    if (!data.comment && !newsIsOpen) markNewsUnread();
+    if (newsIsOpen) {
+      clearNewsUnread();
+      renderNews().catch((error) => toast(error.message));
+    }
   });
   state.eventSource.addEventListener("report-created", () => refreshReportBadge().catch(() => {}));
 }
@@ -1858,7 +1902,7 @@ function bindEvents() {
     if (!event.target.closest(".message-menu-wrap")) closeMessageMenus();
     if (!event.target.closest(".emoji-picker") && !event.target.closest("#emojiButton") && !event.target.closest("#pmEmojiButton")) $(".emoji-picker")?.remove();
     const drawer = $("#drawer");
-    const drawerTrigger = event.target.closest("#profileButton, #pmIcon, #friendIcon, #notificationIcon, #reportFlagIcon, #roomSwitchButton, [data-user-id], [data-open-user-menu], [data-open-profile-actions], [data-user-action-panel], [data-pm-user], [data-own-action], [data-view-profile]");
+    const drawerTrigger = event.target.closest("#profileButton, #pmIcon, #friendIcon, #notificationIcon, #reportFlagIcon, #roomSwitchButton, [data-user-id], [data-open-user-menu], [data-open-profile-actions], [data-user-action-panel], [data-pm-user], [data-pm-open], [data-pm-start], [data-own-action], [data-view-profile]");
     if (drawer && !drawer.classList.contains("hidden") && !event.target.closest("#drawer") && !drawerTrigger) {
       drawer.classList.add("hidden");
       state.activePmUserId = null;
