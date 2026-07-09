@@ -74,7 +74,7 @@
       <aside class="left">
         <nav class="side-nav">
           <button data-view="rooms" type="button">Rooms</button>
-          <button data-view="news" type="button">News</button>
+          <button data-view="news" class="nav-news-button" type="button"><span>News</span><i id="newsBadge" class="menu-dot hidden" aria-hidden="true"></i></button>
           <button data-view="leaderboard" type="button">Leaderboard</button>
           <button data-view="vip" type="button">Buy S-VIP</button>
         </nav>
@@ -116,7 +116,7 @@
 
         <section class="view" id="roomsView"><div class="panel rooms-panel"><div class="view-head"><h2>Rooms</h2><button data-close-view type="button">Close</button></div><div class="room-grid" id="roomGrid"></div></div></section>
         <section class="view" id="profilesView"><div class="panel"><h2>Profiles</h2><div class="profile-grid" id="profileGrid"></div></div></section>
-        <section class="view" id="newsView"><div class="panel news-panel"><div class="view-head"><h2>Town News</h2><button data-close-view type="button">Close</button></div><div id="newsList"></div></div></section>
+        <section class="view" id="newsView"><div class="panel news-panel"><div class="view-head"><h2>Town News <span id="newsTitleDot" class="inline-news-dot hidden" aria-hidden="true"></span></h2><button data-close-view type="button">Close</button></div><div id="newsList"></div></div></section>
         <section class="view" id="leaderboardView"><div class="panel"><div class="view-head"><h2>Leaderboard</h2><button data-close-view type="button">Close</button></div><div id="leaderboard"></div></div></section>
         <section class="view" id="vipView"><div class="panel"><div class="view-head"><h2>Buy S-VIP</h2><button data-close-view type="button">Close</button></div><div class="vip-grid" id="vipGrid"></div></div></section>
         <section class="view" id="adminView"><div class="admin-dashboard" id="adminDashboard"></div></section>
