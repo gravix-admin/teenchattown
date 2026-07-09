@@ -562,10 +562,7 @@ function renderUsers() {
       ${renderUserRows(offline, true)}
     </section>
   `;
-  $$("[data-user-id]").forEach((button) => button.addEventListener("click", () => {
-    $("#drawer").classList.add("hidden");
-    openProfile(Number(button.dataset.userId)).catch((error) => toast(error.message));
-  }));
+  $$("[data-user-id]").forEach((button) => button.addEventListener("click", () => openUserActions(Number(button.dataset.userId))));
 }
 
 function renderUserRows(list, offline = false) {
@@ -1557,19 +1554,19 @@ async function loadPm(userId) {
 
 async function openPmConversations() {
   state.unreadPm = 0;
+  state.activePmUserId = null;
   setBadges();
   $("#drawer").classList.remove("account-drawer");
   $("#drawer").classList.remove("user-drawer");
   $("#drawerTitle").textContent = "Private messages";
-  $("#drawerBody").innerHTML = '<p class="muted">Loading conversations...</p>';
   $("#drawer").classList.remove("hidden");
-  try {
-    const rows = await api("/api/chat/private-conversations");
+  const startUsers = state.users
+    .filter((user) => Number(user.id) !== Number(state.me.id) && visibleInUserList(user))
+    .sort((a, b) => Number(isOnline(b)) - Number(isOnline(a)) || displayName(a).localeCompare(displayName(b)));
+  const userFallbacks = new Map(startUsers.map((user) => [Number(user.id), user]));
+
+  const renderPmDirectory = (rows = [], recentUnavailable = false) => {
     const conversationIds = new Set(rows.map((item) => Number(item.id)));
-    const startUsers = state.users
-      .filter((user) => Number(user.id) !== Number(state.me.id) && visibleInUserList(user))
-      .sort((a, b) => Number(isOnline(b)) - Number(isOnline(a)) || displayName(a).localeCompare(displayName(b)));
-    const userFallbacks = new Map(startUsers.map((user) => [Number(user.id), user]));
     $("#drawerBody").innerHTML = `
       <div class="pm-inbox">
         <div class="pm-section-title"><span>Ongoing texts</span><small>${rows.length || "none"}</small></div>
@@ -1591,7 +1588,7 @@ async function openPmConversations() {
               ${Number(item.unread_count || 0) > 0 ? `<em>${Number(item.unread_count)}</em>` : ""}
             </button>
           `;
-        }).join("") || '<div class="pm-empty"><strong>No private chats yet</strong><span>Pick someone below to start one.</span></div>'}
+        }).join("") || `<div class="pm-empty"><strong>${recentUnavailable ? "Recent chats unavailable" : "No private chats yet"}</strong><span>Pick someone below to start texting.</span></div>`}
         <section class="pm-start-panel">
           <div class="pm-section-title"><span>Start a text</span><small>${startUsers.length || "none"}</small></div>
           <input id="pmUserSearch" class="pm-user-search" placeholder="Search people..." autocomplete="off" />
@@ -1633,8 +1630,16 @@ async function openPmConversations() {
     $("#pmUserSearch")?.addEventListener("input", renderStartUsers);
     renderStartUsers();
     $("#pmUserSearch")?.focus();
+  };
+
+  renderPmDirectory();
+  try {
+    const rows = await api("/api/chat/private-conversations");
+    if (state.activePmUserId) return;
+    renderPmDirectory(rows);
   } catch (error) {
-    $("#drawerBody").innerHTML = `<p class="muted">${html(error.message)}</p>`;
+    if (state.activePmUserId) return;
+    renderPmDirectory([], true);
   }
 }
 
