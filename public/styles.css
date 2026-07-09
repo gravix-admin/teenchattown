@@ -817,20 +817,25 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 
 .profile-modal {
   width: min(530px, calc(100% - 28px));
+  max-height: calc(100dvh - 28px);
   --profile-accent: #ef4444;
   border-color: color-mix(in srgb, var(--profile-accent) 82%, transparent);
   background: linear-gradient(180deg, rgba(16, 24, 36, .98), rgba(10, 14, 22, .98));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--profile-accent) 22%, transparent), 0 26px 90px rgba(0,0,0,.62), 0 0 34px color-mix(in srgb, var(--profile-accent) 28%, transparent);
+  overflow: auto;
 }
-.profile-shell { background: #0d131d; }
+.profile-shell {
+  min-height: 0;
+  background: #0d131d;
+}
 .profile-modal .modal-close { display: none; }
 .profile-cover {
   position: relative;
   display: grid;
   grid-template-columns: 1fr;
   justify-items: center;
-  min-height: 425px;
-  padding: 132px 26px 28px;
+  min-height: clamp(320px, 52dvh, 390px);
+  padding: 116px 26px 26px;
   text-align: center;
   background:
     linear-gradient(180deg, rgba(9,13,20,.12) 0, rgba(12,18,28,.58) 45%, rgba(12,18,28,.98) 74%),
@@ -959,11 +964,14 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   background: linear-gradient(180deg, var(--profile-accent), #991b1b);
 }
 .profile-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0;
   padding: 0 14px;
-  background: rgba(9,13,20,.92);
+  background: rgba(9,13,20,.98);
   border-top: 1px solid color-mix(in srgb, var(--profile-accent) 24%, transparent);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
@@ -972,11 +980,14 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  color: #d8dee9;
+  color: #f8fafc;
   background: transparent;
+  font-weight: 900;
+  text-align: center;
 }
 .profile-tabs .active {
   border-bottom-color: var(--profile-accent);
+  color: #fff;
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--profile-accent) 12%, transparent));
 }
 .profile-tab {
@@ -1954,6 +1965,12 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   background: linear-gradient(135deg, rgba(139,92,246,.18), rgba(34,211,238,.08));
 }
 .pm-head small { display: block; margin-top: 4px; }
+.pm-head-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
 .pm-head-action {
   min-height: 34px;
   border: 0;
@@ -2004,6 +2021,13 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   transform: translateY(-1px);
   background: linear-gradient(135deg, rgba(34,211,238,.12), rgba(139,92,246,.12));
 }
+.pm-conversation.unread {
+  border-color: rgba(251,113,133,.38);
+  background: linear-gradient(135deg, rgba(251,113,133,.18), rgba(139,92,246,.11));
+}
+.pm-conversation.unread strong {
+  color: #fff;
+}
 .pm-conversation small {
   display: block;
   overflow: hidden;
@@ -2012,16 +2036,25 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   white-space: nowrap;
 }
 .pm-conversation em {
-  display: grid;
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
   min-width: 24px;
   height: 24px;
-  place-items: center;
   border-radius: 50%;
   background: var(--danger);
   color: white;
   font-size: .76rem;
   font-style: normal;
   font-weight: 900;
+}
+.pm-conversation em i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.18);
 }
 .pm-empty {
   display: grid;
@@ -2264,6 +2297,48 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   }
   .panel-grid, .vip-grid, .profile-grid, .room-grid, .admin-stats, .profile-detail-bubbles, .leaderboard-tabs { grid-template-columns: 1fr; }
   .wall-form, .gallery-form, .room-create-form, .news-form, .admin-user-row, .report-row, .news-card { grid-template-columns: 1fr; }
+  .profile-modal {
+    width: calc(100% - 18px);
+    max-height: calc(100dvh - 18px);
+  }
+  .profile-cover {
+    min-height: 330px;
+    padding: 92px 16px 20px;
+  }
+  .profile-counter-row {
+    left: 10px;
+    max-width: calc(100% - 88px);
+    flex-wrap: wrap;
+  }
+  .profile-corner-actions {
+    right: 10px;
+  }
+  .profile-cover h2 {
+    font-size: 1.6rem;
+  }
+  .profile-main-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .profile-main-actions button {
+    flex: 1 1 138px;
+    min-width: 0;
+  }
+  .profile-tabs {
+    padding: 0 8px;
+  }
+  .profile-tabs button {
+    min-height: 48px;
+  }
+  .profile-tab {
+    padding: 14px;
+  }
+  .profile-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .profile-stat-grid article:nth-child(2) {
+    border-right: 0;
+  }
   .leaderboard-row { grid-template-columns: 42px 38px 1fr; }
   .leaderboard-row b { grid-column: 3; }
   .gallery-grid, .permission-grid, .badge-editor { grid-template-columns: 1fr; }
@@ -2362,6 +2437,49 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   }
   .message-meta time {
     font-size: .72rem;
+  }
+  .profile-modal {
+    width: calc(100% - 10px);
+    max-height: calc(100dvh - 10px);
+    border-radius: 16px;
+  }
+  .profile-cover {
+    min-height: 310px;
+    padding-top: 86px;
+  }
+  .profile-avatar-wrap,
+  .profile-avatar-wrap img,
+  .profile-cover > img {
+    width: 92px;
+    height: 92px;
+  }
+  .profile-cover h2 {
+    font-size: 1.4rem;
+  }
+  .profile-quote {
+    margin-top: 10px;
+    font-size: .9rem;
+  }
+  .profile-counter-row span,
+  .profile-counter-row button,
+  .profile-corner-actions button {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: .75rem;
+  }
+  .profile-tabs button {
+    min-height: 44px;
+    font-size: .9rem;
+  }
+  .pm-head {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+  .pm-head-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .pm-head-action {
+    flex: 1;
   }
   .composer-input {
     grid-template-columns: 34px minmax(0, 1fr) 34px 34px 34px;
