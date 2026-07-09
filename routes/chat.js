@@ -187,18 +187,36 @@ router.get("/private-conversations", requireAuth, async (req, res) => {
   const [rows] = await pool.query(
     `SELECT other_user.id, other_user.username, other_user.display_name, other_user.rank_name, other_user.profile_title,
       other_user.avatar_url, other_user.gender,
-      MAX(pm.created_at) AS last_message_at,
-      SUBSTRING_INDEX(GROUP_CONCAT(COALESCE(NULLIF(pm.body, ''), 'Image') ORDER BY pm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_body,
-      SUM(CASE WHEN pm.receiver_id = ? AND pm.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count
-     FROM private_messages pm
-     JOIN users other_user ON other_user.id = CASE WHEN pm.sender_id = ? THEN pm.receiver_id ELSE pm.sender_id END
-     WHERE (pm.sender_id = ? OR pm.receiver_id = ?) AND pm.deleted_at IS NULL
-     GROUP BY other_user.id, other_user.username, other_user.display_name, other_user.rank_name, other_user.profile_title, other_user.avatar_url, other_user.gender
-     ORDER BY last_message_at DESC
+      latest_message.created_at AS last_message_at,
+      COALESCE(NULLIF(latest_message.body, ''), 'Image') AS last_body,
+      COALESCE(unread.unread_count, 0) AS unread_count
+     FROM (
+       SELECT CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS other_user_id, MAX(id) AS last_message_id
+       FROM private_messages
+       WHERE (sender_id = ? OR receiver_id = ?) AND deleted_at IS NULL
+       GROUP BY CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END
+     ) conversations
+     JOIN private_messages latest_message ON latest_message.id = conversations.last_message_id
+     JOIN users other_user ON other_user.id = conversations.other_user_id
+     LEFT JOIN (
+       SELECT sender_id AS other_user_id, COUNT(*) AS unread_count
+       FROM private_messages
+       WHERE receiver_id = ? AND read_at IS NULL AND deleted_at IS NULL
+       GROUP BY sender_id
+     ) unread ON unread.other_user_id = conversations.other_user_id
+     ORDER BY latest_message.created_at DESC
      LIMIT 50`,
-    [req.user.id, req.user.id, req.user.id, req.user.id]
+    [req.user.id, req.user.id, req.user.id, req.user.id, req.user.id]
   );
   res.json(rows);
+});
+
+router.get("/private-unread-count", requireAuth, async (req, res) => {
+  const [[row]] = await pool.query(
+    "SELECT COUNT(*) AS count FROM private_messages WHERE receiver_id = ? AND read_at IS NULL AND deleted_at IS NULL",
+    [req.user.id]
+  );
+  res.json({ count: Number(row.count || 0) });
 });
 
 router.post("/private-messages", requireAuth, upload.single("attachment"), async (req, res) => {
@@ -217,7 +235,15 @@ router.post("/private-messages", requireAuth, upload.single("attachment"), async
     "INSERT INTO private_messages (sender_id, receiver_id, body, attachment_url, attachment_type) VALUES (?, ?, ?, ?, ?)",
     [req.user.id, receiverId, body, attachmentUrl, req.file?.mimetype || null]
   );
-  const payload = { id: result.insertId, senderId: req.user.id, receiverId, body, attachmentUrl, createdAt: new Date() };
+  const payload = {
+    id: result.insertId,
+    senderId: req.user.id,
+    senderUsername: req.user.username,
+    receiverId,
+    body,
+    attachmentUrl,
+    createdAt: new Date()
+  };
   notifyUser(receiverId, "private-message", payload);
   res.status(201).json(payload);
 });
