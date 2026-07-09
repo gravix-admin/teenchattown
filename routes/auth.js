@@ -78,6 +78,10 @@ router.get("/me", requireAuth, async (req, res) => {
   );
   const [users] = await pool.query("SELECT * FROM users ORDER BY FIELD(rank_name,'developer','chief','manager','inspector','supervisor','super visor','superadmin','visor','admin','moderator','premium','queen','king','s-vip','vip','user'), username");
   const [notifications] = await pool.query("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 30", [req.user.id]);
+  const [[privateUnread]] = await pool.query(
+    "SELECT COUNT(*) AS count FROM private_messages WHERE receiver_id = ? AND read_at IS NULL AND deleted_at IS NULL",
+    [req.user.id]
+  );
   const [friendRequests] = await pool.query(
     `SELECT fr.*, u.username, u.avatar_url, u.rank_name FROM friend_requests fr
      JOIN users u ON u.id = fr.from_user_id
@@ -91,6 +95,7 @@ router.get("/me", requireAuth, async (req, res) => {
     users: users.map((user) => publicUser(user, req.user)),
     notifications,
     friendRequests,
+    unreadPm: Number(privateUnread.count || 0),
     rankBadges: await rankBadges(),
   });
 });
