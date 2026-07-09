@@ -3,7 +3,7 @@ const pool = require("../database");
 const { requireAuth, isStaff } = require("../middleware/auth");
 const { notifyUser, broadcast } = require("../services/events");
 const { publicUser } = require("../services/userService");
-const { imageUpload } = require("../services/upload");
+const { imageUpload, fileToDataUrl } = require("../services/upload");
 
 const router = express.Router();
 const galleryUpload = imageUpload("gallery");
@@ -184,7 +184,7 @@ router.delete("/wall-posts/:id", requireAuth, async (req, res) => {
 
 router.post("/profiles/me/gallery", requireAuth, galleryUpload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Choose an image." });
-  const imageUrl = `/uploads/gallery/${req.file.filename}`;
+  const imageUrl = fileToDataUrl(req.file);
   const [result] = await pool.query(
     "INSERT INTO profile_gallery (user_id, image_url, caption) VALUES (?, ?, ?)",
     [req.user.id, imageUrl, String(req.body.caption || "").slice(0, 180)]
