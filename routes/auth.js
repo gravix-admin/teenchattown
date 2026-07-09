@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../database");
 const { requireAuth } = require("../middleware/auth");
-const { imageUpload } = require("../services/upload");
+const { imageUpload, fileToDataUrl } = require("../services/upload");
 const { calculateAge, publicUser, rankBadges } = require("../services/userService");
 const { broadcast } = require("../services/events");
 
@@ -157,13 +157,15 @@ router.post("/me/password", requireAuth, async (req, res) => {
 });
 
 router.post("/me/avatar", requireAuth, avatarUpload.single("avatar"), async (req, res) => {
-  const url = `/uploads/avatars/${req.file.filename}`;
+  if (!req.file) return res.status(400).json({ error: "Choose an avatar image." });
+  const url = fileToDataUrl(req.file);
   await pool.query("UPDATE users SET avatar_url = ? WHERE id = ?", [url, req.user.id]);
   res.json({ avatarUrl: url });
 });
 
 router.post("/me/banner", requireAuth, bannerUpload.single("banner"), async (req, res) => {
-  const url = `/uploads/banners/${req.file.filename}`;
+  if (!req.file) return res.status(400).json({ error: "Choose a banner image." });
+  const url = fileToDataUrl(req.file);
   await pool.query("UPDATE users SET banner_url = ? WHERE id = ?", [url, req.user.id]);
   res.json({ bannerUrl: url });
 });
