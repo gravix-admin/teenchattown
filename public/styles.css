@@ -350,13 +350,17 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .message-card {
   position: relative;
   min-width: 0;
-  max-width: 900px;
+  width: fit-content;
+  max-width: min(760px, 100%);
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 18px 18px 18px 8px;
-  padding: 9px 12px;
-  background: linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.055));
+  padding: 10px 13px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.06)),
+    rgba(10, 18, 33, .56);
   color: var(--message-color, var(--text));
-  box-shadow: 0 10px 24px rgba(0,0,0,.16);
+  box-shadow: 0 12px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.1);
+  backdrop-filter: blur(10px);
   overflow-wrap: anywhere;
 }
 .message-card::before {
@@ -376,7 +380,9 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   justify-self: end;
   border-color: rgba(24,183,181,.22);
   border-radius: 18px 18px 8px 18px;
-  background: linear-gradient(135deg, rgba(24,183,181,.22), rgba(232,76,127,.14));
+  background:
+    linear-gradient(135deg, rgba(24,183,181,.26), rgba(232,76,127,.16)),
+    rgba(10, 18, 33, .62);
 }
 .message.own .message-card::before {
   right: -5px;
@@ -423,7 +429,12 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .rank-manager { background: linear-gradient(135deg, #f97316, #facc15); color: #241100; }
 .rank-inspector { background: linear-gradient(135deg, #14b8a6, #22d3ee); }
 .rank-supervisor { background: linear-gradient(135deg, #10b981, #84cc16); color: #061a12; }
-.message-card p { margin: 6px 0; line-height: 1.48; }
+.message-card p {
+  margin: 6px 0 2px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .mention {
   border-radius: 7px;
   padding: 1px 4px;
