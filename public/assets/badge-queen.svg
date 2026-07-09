@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs><linearGradient id="g" x1="12" x2="84" y1="12" y2="84"><stop stop-color="#fb7185"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+  <circle cx="48" cy="48" r="44" fill="url(#g)"/>
+  <path fill="#fff" d="m22 40 13 8 13-23 13 23 13-8-6 29H28z"/>
+  <circle cx="48" cy="28" r="5" fill="#ffe4f0"/>
+  <text x="48" y="78" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="900" fill="#fff">QUEEN</text>
+</svg>

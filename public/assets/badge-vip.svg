@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <rect width="80" height="80" rx="24" fill="#1f1638"/>
+  <path d="M16 29h48L54 62H26z" fill="#f7c948"/>
+  <path d="M16 29l12-13 12 13 12-13 12 13" fill="#fde68a"/>
+  <text x="40" y="54" text-anchor="middle" font-family="Arial" font-size="16" font-weight="900" fill="#3b2500">VIP</text>
+</svg>

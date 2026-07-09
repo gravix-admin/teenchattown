@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teens Town Chat</title>
+    <meta name="description" content="Teens Town Chat is a real-time teen community with chat rooms, profiles, friends, ranks, staff tools, and MySQL-saved accounts and messages." />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <section class="auth-screen" id="authScreen">
+      <div class="auth-hero">
+        <div class="brand"><span>TT</span><strong>Teens Town Chat</strong></div>
+        <div class="auth-copy">
+          <span class="eyebrow">Welcome To The Chat</span>
+          <h1>Find your room in Teens Town.</h1>
+          <p>Make friends, jump into live rooms, build your profile, earn ranks, and keep every account, message, friend request, gift, and report saved in MySQL.</p>
+        </div>
+        <div class="auth-highlights">
+          <span>Live rooms</span>
+          <span>Profiles</span>
+          <span>Friends</span>
+          <span>Staff tools</span>
+        </div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-card-heading">
+          <span class="eyebrow">New here?</span>
+          <h2>Login or register now</h2>
+        </div>
+        <div class="auth-tabs">
+          <button class="active" data-auth-tab="login" type="button">Login</button>
+          <button data-auth-tab="register" type="button">Register</button>
+        </div>
+        <form class="auth-form active" id="loginForm">
+          <h3>Enter chat</h3>
+          <input name="identity" placeholder="Username or email" autocomplete="username" required />
+          <input name="password" type="password" placeholder="Password" autocomplete="current-password" required />
+          <button class="primary" type="submit">Enter Chat</button>
+        </form>
+        <form class="auth-form" id="registerForm">
+          <h3>Create account</h3>
+          <input name="username" placeholder="Username" minlength="3" maxlength="18" required />
+          <input name="email" type="email" placeholder="Email" required />
+          <input name="password" type="password" placeholder="Password" minlength="6" required />
+          <label class="field-label">Date of birth<input name="dob" type="date" required /></label>
+          <div class="gender-row">
+            <label><input type="radio" name="gender" value="male" checked /> Male</label>
+            <label><input type="radio" name="gender" value="female" /> Female</label>
+            <label><input type="radio" name="gender" value="other" /> Other</label>
+          </div>
+          <button class="primary" type="submit">Register</button>
+        </form>
+        <p class="auth-note">For ages 13+. Be kind, protect private info, and use reports when something feels off.</p>
+        <p id="authMessage"></p>
+      </div>
+    </section>
+
+    <section class="app hidden" id="app">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuButton" title="Menu" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <div class="brand small"><span>TT</span><strong>Teens Town Chat</strong></div>
+        <nav class="top-icons" aria-label="Top actions">
+          <button id="refreshButton" title="Refresh" type="button"><svg viewBox="0 0 24 24"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3z"/></svg></button>
+          <button id="pmIcon" title="Private messages" type="button"><svg viewBox="0 0 24 24"><path d="M3 5h18v12H8l-5 4z"/></svg><em id="pmBadge" class="hidden"></em></button>
+          <button id="friendIcon" title="Friend requests" type="button"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-7 2-7 5v1h14v-1c0-3-3-5-7-5zm8-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg><em id="friendBadge" class="hidden"></em></button>
+          <button id="notificationIcon" title="Notifications" type="button"><svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 1 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg><em id="notificationBadge" class="hidden"></em></button>
+          <button id="reportFlagIcon" class="staff-only hidden" title="Reports" type="button"><svg viewBox="0 0 24 24"><path d="M5 21V4h10l1 2h4v10h-8l-1-2H7v7z"/></svg><em id="reportBadge" class="hidden"></em></button>
+          <button id="rightToggleButton" title="Users panel" type="button"><svg viewBox="0 0 24 24"><path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM7 13c-4 0-6 2.2-6 5v1h12v-1c0-2.8-2-5-6-5Zm10 .5c-1.1 0-2.1.2-2.9.6 1.2 1 1.9 2.4 1.9 3.9v1h7v-1c0-2.5-2-4.5-6-4.5Z"/></svg></button>
+          <button id="profileButton" class="profile-button" type="button"><img id="topAvatar" alt="" /><span id="topName"></span></button>
+        </nav>
+      </header>
+
+      <aside class="left">
+        <nav class="side-nav">
+          <button data-view="rooms" type="button">Rooms</button>
+          <button data-view="news" type="button">News</button>
+          <button data-view="leaderboard" type="button">Leaderboard</button>
+          <button data-view="vip" type="button">Buy S-VIP</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <section class="view active" id="chatView">
+          <div class="chat-shell">
+            <div class="chat-head">
+              <div><h2 id="roomTitle">Main Room</h2><p id="roomDescription">Central room</p></div>
+              <div class="chat-head-actions"><button id="pinnedButton" type="button">Pinned</button><button id="pollButton" type="button">Poll</button></div>
+            </div>
+            <div class="messages" id="messages"></div>
+            <div class="typing" id="typingText">No one is typing</div>
+            <form class="composer" id="messageForm">
+              <div class="reply-box hidden" id="replyBox"><span></span><button type="button" id="clearReply">x</button></div>
+              <input id="messageAttachment" class="hidden" type="file" accept="image/*" />
+              <div class="composer-input">
+                <button class="composer-icon" id="emojiButton" type="button" title="Emoji"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM8 9.5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm8 0a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm-4 7.2c-2.2 0-4-1.2-5-3h10c-1 1.8-2.8 3-5 3Z"/></svg></button>
+                <input id="messageInput" maxlength="1200" placeholder="Type here.." />
+                <span id="charCount" class="hidden">0/1200</span>
+                <button class="composer-icon" id="uploadMessageButton" type="button" title="Upload image"><svg viewBox="0 0 24 24"><path d="M5 5h3l1.5-2h5L16 5h3a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm7 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2.2a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6Z"/></svg></button>
+                <button class="composer-icon" id="voiceButton" type="button" title="Voice"><svg viewBox="0 0 24 24"><path d="M12 14a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v4a4 4 0 0 0 4 4Zm7-4h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-4.08A7 7 0 0 0 19 10Z"/></svg></button>
+                <button class="send icon-send" type="submit" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l13 2-13 2z"/></svg></button>
+              </div>
+              <div class="slash-suggestions hidden" id="slashSuggestions"></div>
+              <div class="upload-preview hidden" id="uploadPreview"></div>
+            </form>
+          </div>
+        </section>
+
+        <section class="view" id="friendsView">
+          <div class="panel-grid">
+            <article class="panel"><h2>Friend requests</h2><div id="friendRequests"></div></article>
+            <article class="panel"><h2>Friends</h2><div id="friendsList"></div></article>
+            <article class="panel"><h2>Blocked users</h2><div id="blockList"></div></article>
+          </div>
+        </section>
+
+        <section class="view" id="roomsView"><div class="panel rooms-panel"><div class="view-head"><h2>Rooms</h2><button data-close-view type="button">Close</button></div><div class="room-grid" id="roomGrid"></div></div></section>
+        <section class="view" id="profilesView"><div class="panel"><h2>Profiles</h2><div class="profile-grid" id="profileGrid"></div></div></section>
+        <section class="view" id="newsView"><div class="panel news-panel"><div class="view-head"><h2>Town News</h2><button data-close-view type="button">Close</button></div><div id="newsList"></div></div></section>
+        <section class="view" id="leaderboardView"><div class="panel"><div class="view-head"><h2>Leaderboard</h2><button data-close-view type="button">Close</button></div><div id="leaderboard"></div></div></section>
+        <section class="view" id="vipView"><div class="panel"><div class="view-head"><h2>Buy S-VIP</h2><button data-close-view type="button">Close</button></div><div class="vip-grid" id="vipGrid"></div></div></section>
+        <section class="view" id="adminView"><div class="admin-dashboard" id="adminDashboard"></div></section>
+      </main>
+
+      <aside class="right">
+        <div class="right-panel-head">
+          <div class="right-tabs">
+            <button class="active" data-user-tab="all" title="All users" type="button"><svg viewBox="0 0 24 24"><path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM7 13c-4 0-6 2.2-6 5v1h12v-1c0-2.8-2-5-6-5Zm10 .5c-1.1 0-2.1.2-2.9.6 1.2 1 1.9 2.4 1.9 3.9v1h7v-1c0-2.5-2-4.5-6-4.5Z"/></svg></button>
+            <button data-user-tab="friends" title="Friends" type="button"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 5v1h14v-1c0-3-3-5-7-5Zm8-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg></button>
+            <button data-user-tab="staff" title="Staff" type="button"><svg viewBox="0 0 24 24"><path d="M12 2 20 6v6c0 5-3.4 9.4-8 10-4.6-.6-8-5-8-10V6l8-4Zm-1 6v4H7l6 6v-4h4z"/></svg></button>
+          </div>
+          <button id="closeRightPanel" class="panel-close-button" title="Close users" type="button"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </div>
+        <div id="userList"></div>
+      </aside>
+    </section>
+
+    <div class="drawer hidden" id="drawer"><div class="drawer-head"><h2 id="drawerTitle"></h2><button id="closeDrawer" class="panel-close-button" title="Close" type="button"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="drawerBody"></div></div>
+
+    <dialog class="modal profile-modal" id="profileModal">
+      <button class="modal-close" data-close-modal type="button">x</button>
+      <div class="profile-shell">
+        <div class="profile-cover" id="profileCover">
+          <div class="profile-counter-row" id="profileCounters"></div>
+          <div class="profile-corner-actions" id="profileCornerActions"></div>
+          <div class="profile-avatar-wrap">
+            <img id="profileAvatar" alt="" />
+            <span class="profile-status-dot" id="profileStatusDot"></span>
+          </div>
+          <h2 id="profileName"></h2>
+          <p id="profileHandle"></p>
+          <div id="profileRankLine"></div>
+          <p class="profile-quote" id="profileQuote"></p>
+          <div class="profile-main-actions" id="profileMainActions"></div>
+        </div>
+        <div class="profile-tabs">
+          <button class="active" data-profile-tab="info">Overview</button>
+          <button data-profile-tab="more">More</button>
+        </div>
+        <div class="profile-tab active" id="profileInfo"></div>
+        <div class="profile-tab" id="profileFriends"></div>
+        <div class="profile-tab" id="profileBadges"></div>
+        <div class="profile-tab" id="profileActivity"></div>
+        <div class="profile-tab" id="profileMore"></div>
+      </div>
+    </dialog>
+
+    <dialog class="modal edit-profile-modal" id="editProfileModal">
+      <button class="modal-close" data-close-modal type="button">x</button>
+      <div class="edit-profile-head">
+        <button class="edit-back" data-close-modal type="button"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+        <strong>Edit Profile</strong>
+        <button class="primary" form="editProfileForm" type="submit">Save</button>
+      </div>
+      <form id="editProfileForm" class="stack-form">
+        <div class="edit-banner-preview" id="editBannerPreview">
+          <label class="edit-upload-pill">Change Background<input id="bannerUpload" type="file" accept="image/*" /></label>
+          <div class="edit-avatar-preview">
+            <img id="editAvatarPreview" alt="" />
+            <label class="edit-upload-pill small">Change Avatar<input id="avatarUpload" type="file" accept="image/*" /></label>
+          </div>
+        </div>
+        <label>Display Name<input name="displayName" placeholder="Display name" /></label>
+        <label>Username<input name="username" placeholder="Username, VIP or higher" /></label>
+        <label>Bio<span class="bio-count" id="bioCount">0/120</span><textarea name="bio" placeholder="Short bio" maxlength="120"></textarea></label>
+        <div class="edit-field-grid">
+          <label>Role / Title<input name="profileTitle" placeholder="HACKER" /></label>
+          <label>Level<input name="level" readonly /></label>
+          <label>Status<select name="profileStatus"><option>Online</option><option>Invisible</option></select></label>
+        </div>
+        <section class="profile-settings-card">
+          <button class="settings-collapse" type="button"><strong>Profile Settings</strong><span>^</span></button>
+          <label>Theme Accent<input name="profileAccent" type="hidden" value="#ef4444" /><span class="theme-dots" id="themeAccentDots"><button class="active" data-accent="#ef4444" type="button"></button><button data-accent="#a855f7" type="button"></button><button data-accent="#0ea5e9" type="button"></button><button data-accent="#22c55e" type="button"></button><button data-accent="#f97316" type="button"></button></span></label>
+          <label class="toggle-row">Show Online Status<input name="showOnlineStatus" type="checkbox" checked /></label>
+        </section>
+        <details class="advanced-edit">
+          <summary>More profile options</summary>
+          <label>About Me<textarea name="aboutMe" placeholder="About me"></textarea></label>
+          <div class="edit-field-grid">
+            <label>Mood<input name="mood" placeholder="Mood" /></label>
+            <label>Profile music URL<input name="profileMusicUrl" placeholder="https://..." /></label>
+          </div>
+          <div class="edit-field-grid">
+            <label>Username color<input name="usernameColor" placeholder="#f87171" /></label>
+            <label>Text color<input name="textColor" placeholder="#fbf7ff" /></label>
+          </div>
+          <div class="edit-field-grid">
+            <label>Theme<select name="theme"><option>dark</option><option>glass</option><option>neon</option><option>cyberpunk</option><option>premium</option></select></label>
+            <label>Bubble<select name="bubbleStyle"><option value="default">Default bubble</option><option value="vip">VIP bubble</option><option value="premium">Premium bubble</option></select></label>
+          </div>
+        </details>
+      </form>
+      <div class="edit-account-actions">
+        <button id="changePasswordButton" type="button">Change password</button>
+        <button id="deleteRequestButton" type="button">Schedule account deletion</button>
+        <button id="cancelDeleteButton" type="button">Cancel deletion</button>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="userActionModal">
+      <button class="modal-close" data-close-modal type="button">x</button>
+      <div id="userActionBody"></div>
+    </dialog>
+
+    <script src="/script.js"></script>
+  </body>
+</html>

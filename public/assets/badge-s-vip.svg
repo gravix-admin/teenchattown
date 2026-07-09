@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+  <rect width="80" height="80" rx="24" fill="url(#g)"/>
+  <path d="M40 11l28 21-11 35H23L12 32z" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-opacity=".75" stroke-width="3"/>
+  <text x="40" y="48" text-anchor="middle" font-family="Arial" font-size="15" font-weight="900" fill="#fff">SVIP</text>
+</svg>
