@@ -15,6 +15,8 @@ const state = {
   activePmUserId: null,
   uploadFile: null,
   pmUploadFile: null,
+  lastTapMessageId: null,
+  lastTapAt: 0,
   userTab: "all",
   unreadPm: 0,
   unreadNews: localStorage.getItem("tct_news_unread") === "1",
@@ -480,6 +482,28 @@ function bindMessageActions() {
     menu.classList.toggle("hidden", !wasHidden);
   }));
   $$(".message-menu").forEach((menu) => menu.addEventListener("click", () => closeMessageMenus()));
+  $$(".message-card", $("#messages")).forEach((card) => {
+    const article = card.closest("[data-message-id]");
+    const messageId = article?.dataset.messageId;
+    if (!messageId) return;
+    card.addEventListener("dblclick", (event) => {
+      if (event.target.closest("button, a, input, textarea, select")) return;
+      quoteMessage(messageId);
+    });
+    card.addEventListener("touchend", (event) => {
+      if (event.target.closest("button, a, input, textarea, select")) return;
+      const now = Date.now();
+      if (state.lastTapMessageId === messageId && now - state.lastTapAt < 360) {
+        event.preventDefault();
+        quoteMessage(messageId);
+        state.lastTapMessageId = null;
+        state.lastTapAt = 0;
+        return;
+      }
+      state.lastTapMessageId = messageId;
+      state.lastTapAt = now;
+    }, { passive: false });
+  });
   $$("[data-message-profile]", $("#messages")).forEach((button) => button.addEventListener("click", () => {
     closeMessageMenus();
     openProfile(Number(button.dataset.messageProfile)).catch((error) => toast(error.message));
@@ -507,9 +531,7 @@ function bindMessageActions() {
   }));
   $$("[data-quote]").forEach((button) => button.addEventListener("click", () => {
     closeMessageMenus();
-    const message = state.messages.find((item) => Number(item.id) === Number(button.dataset.quote));
-    $("#messageInput").value = `> ${message?.body || ""}\n`;
-    $("#messageInput").focus();
+    quoteMessage(button.dataset.quote);
   }));
   $$("[data-react]").forEach((button) => button.addEventListener("click", async () => {
     closeMessageMenus();
@@ -547,6 +569,18 @@ function bindMessageActions() {
     label: `message #${button.dataset.reportMessage}`,
   });
   }));
+}
+
+function quoteMessage(messageId) {
+  closeMessageMenus();
+  const message = state.messages.find((item) => Number(item.id) === Number(messageId));
+  if (!message) return;
+  const body = String(message.body || "").trim();
+  const quote = body ? `> ${message.username || "User"}: ${body}\n` : `> ${message.username || "User"} shared an attachment\n`;
+  const input = $("#messageInput");
+  input.value = `${quote}${input.value}`.trimEnd();
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
 }
 
 function renderUsers() {
@@ -773,6 +807,10 @@ async function openReportQueueDrawer() {
 
 async function openProfile(userId) {
   $("#drawer")?.classList.add("hidden");
+  if (state.compactLayout) {
+    $("#app")?.classList.add("right-closed");
+    $("#app")?.classList.remove("nav-open");
+  }
   const data = await api(`/api/social/profiles/${userId}`);
   const user = data.user;
   const self = Number(user.id) === Number(state.me.id);
