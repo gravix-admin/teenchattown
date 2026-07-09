@@ -70,6 +70,36 @@ input, textarea, select {
 }
 textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .hidden { display: none !important; }
+.messages,
+.left,
+.right,
+.drawer,
+.view > .panel,
+.news-panel,
+.admin-dashboard,
+.pm-thread,
+.pm-start-list,
+#drawerBody,
+.modal,
+.profile-modal {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.messages::-webkit-scrollbar,
+.left::-webkit-scrollbar,
+.right::-webkit-scrollbar,
+.drawer::-webkit-scrollbar,
+.view > .panel::-webkit-scrollbar,
+.news-panel::-webkit-scrollbar,
+.admin-dashboard::-webkit-scrollbar,
+.pm-thread::-webkit-scrollbar,
+.pm-start-list::-webkit-scrollbar,
+#drawerBody::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.profile-modal::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
 .auth-screen {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 500px);
@@ -198,15 +228,22 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .top-icons svg { width: 20px; height: 20px; fill: currentColor; }
 .top-icons em {
   position: absolute;
-  right: -4px;
-  top: -6px;
-  min-width: 18px;
+  right: -6px;
+  top: -7px;
+  display: inline-grid;
+  min-width: 19px;
+  height: 19px;
+  place-items: center;
   border-radius: 999px;
-  padding: 2px 5px;
-  background: var(--danger);
+  border: 2px solid rgba(10, 18, 33, .96);
+  padding: 0 5px;
+  background: linear-gradient(135deg, #ff315f, #ff7a45);
   color: white;
   font-size: .7rem;
   font-style: normal;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow: 0 0 0 3px rgba(255,49,95,.14), 0 8px 20px rgba(255,49,95,.34);
 }
 .top-icons em:empty {
   display: none;
@@ -295,6 +332,11 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .main { min-width: 0; height: 100%; padding: 14px; overflow: hidden; }
 .view { display: none; height: 100%; min-height: 0; }
 .view.active { display: block; animation: fadeIn .16s ease; }
+.view > .panel {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
 .chat-shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; height: 100%; min-height: 0; overflow: hidden; border-radius: 20px; }
 .chat-head { display: flex; justify-content: space-between; gap: 16px; padding: 16px; border-bottom: 1px solid var(--line); }
 .chat-head h2 { margin: 0; }
@@ -352,15 +394,15 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   min-width: 0;
   width: fit-content;
   max-width: min(760px, 100%);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 18px 18px 18px 8px;
-  padding: 10px 13px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 20px 20px 20px 9px;
+  padding: 10px 14px 11px;
   background:
-    linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.06)),
-    rgba(10, 18, 33, .56);
+    linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.07) 46%, rgba(255,255,255,.045)),
+    rgba(10, 18, 33, .66);
   color: var(--message-color, var(--text));
-  box-shadow: 0 12px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.1);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 30px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.13);
+  backdrop-filter: blur(12px) saturate(1.1);
   overflow-wrap: anywhere;
 }
 .message-card::before {
@@ -375,14 +417,23 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   background: rgba(255,255,255,.08);
   transform: rotate(45deg);
 }
+.message-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px 12px auto;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent);
+  pointer-events: none;
+}
 .message.own .message-card {
   grid-column: 1;
   justify-self: end;
-  border-color: rgba(24,183,181,.22);
-  border-radius: 18px 18px 8px 18px;
+  border-color: rgba(24,183,181,.34);
+  border-radius: 20px 20px 9px 20px;
   background:
-    linear-gradient(135deg, rgba(24,183,181,.26), rgba(232,76,127,.16)),
-    rgba(10, 18, 33, .62);
+    linear-gradient(145deg, rgba(24,183,181,.32), rgba(232,76,127,.18) 58%, rgba(255,255,255,.06)),
+    rgba(10, 18, 33, .68);
 }
 .message.own .message-card::before {
   right: -5px;
@@ -400,7 +451,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   border-color: rgba(236,72,153,.32);
   background: linear-gradient(135deg, rgba(236,72,153,.22), rgba(34,211,238,.12));
 }
-.message-card:hover { border-color: var(--line); filter: brightness(1.06); }
+.message-card:hover { border-color: rgba(255,255,255,.22); filter: brightness(1.06); }
 .message-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .message-author {
   min-height: auto;
@@ -411,6 +462,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   background: transparent;
   font-weight: 900;
   line-height: 1.2;
+  text-shadow: 0 1px 14px rgba(0,0,0,.28);
 }
 .message-author:hover {
   color: var(--cyan);
@@ -666,6 +718,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   padding: 0;
   color: var(--text);
   overflow: hidden;
+  z-index: 90;
 }
 .modal::backdrop { background: rgba(5, 0, 20, .72); backdrop-filter: blur(4px); }
 .modal-close { position: absolute; right: 14px; top: 14px; z-index: 2; width: 36px; height: 36px; border: 0; border-radius: 12px; color: var(--text); background: rgba(255,255,255,.16); }
@@ -818,6 +871,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .profile-modal {
   width: min(530px, calc(100% - 28px));
   max-height: calc(100dvh - 28px);
+  z-index: 120;
   --profile-accent: #ef4444;
   border-color: color-mix(in srgb, var(--profile-accent) 82%, transparent);
   background: linear-gradient(180deg, rgba(16, 24, 36, .98), rgba(10, 14, 22, .98));
@@ -2366,7 +2420,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 @media (max-width: 520px) {
   .app { --topbar-height: 58px; }
   .topbar {
-    grid-template-columns: 36px 36px minmax(0, 1fr);
+    grid-template-columns: 36px minmax(0, 1fr) auto;
     gap: 6px;
     padding: 8px;
   }
@@ -2382,8 +2436,10 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   }
   .brand.small strong { display: none; }
   .top-icons {
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: 4px;
+    margin-left: auto;
+    max-width: calc(100vw - 90px);
     overflow-x: auto;
     scrollbar-width: none;
   }
