@@ -200,11 +200,12 @@ router.post("/private-messages", requireAuth, upload.single("attachment"), async
   if (muted(req.user)) return res.status(403).json({ error: "You are muted and cannot chat or send PMs." });
   if (!(await hasTool(req.user, "sendPm"))) return res.status(403).json({ error: "Your rank cannot send private messages." });
   if (req.file && !(await hasTool(req.user, "sendFiles"))) return res.status(403).json({ error: "Your rank cannot send files." });
-  const receiverId = Number(req.body.receiverId);
+  const form = req.body || {};
+  const receiverId = Number(form.receiverId);
   if (!receiverId || receiverId === Number(req.user.id)) return res.status(400).json({ error: "Choose another user to message." });
   const [[blocked]] = await pool.query("SELECT COUNT(*) AS count FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)", [receiverId, req.user.id, req.user.id, receiverId]);
   if (blocked.count) return res.status(403).json({ error: "Private message blocked." });
-  const body = String(req.body.body || "").trim().slice(0, 1200);
+  const body = String(form.body || "").trim().slice(0, 1200);
   const attachmentUrl = req.file ? `/uploads/gallery/${req.file.filename}` : null;
   if (!body && !attachmentUrl) return res.status(400).json({ error: "Message or image required." });
   const [result] = await pool.query(
