@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const pool = require("../database");
 const { requireAuth, isStaff } = require("../middleware/auth");
-const { imageUpload } = require("../services/upload");
+const { imageUpload, fileToDataUrl } = require("../services/upload");
 const { addClient, removeClient, broadcast, notifyUser } = require("../services/events");
 const { publicUser } = require("../services/userService");
 
@@ -39,6 +39,8 @@ async function requireRoomAccess(req, res, next) {
 async function hasTool(user, tool) {
   if (user.rank_name === "developer") return true;
   const [[row]] = await pool.query("SELECT allowed FROM role_permissions WHERE rank_name = ? AND tool = ?", [user.rank_name, tool]);
+  if (!row && tool === "sendPm") return true;
+  if (!row && tool === "sendFiles") return user.rank_name !== "vip";
   return Boolean(row?.allowed);
 }
 
@@ -60,15 +62,18 @@ router.get("/events", requireAuth, async (req, res) => {
 
 router.get("/rooms/:roomId/messages", requireAuth, requireRoomAccess, async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT m.*, u.username, u.rank_name, u.profile_title, u.avatar_url, u.username_color, u.text_color, u.bubble_style,
-      (SELECT JSON_ARRAYAGG(JSON_OBJECT('emoji', emoji, 'count', count)) FROM (
-        SELECT emoji, COUNT(*) AS count FROM message_reactions WHERE message_id = m.id GROUP BY emoji
-      ) r) AS reactions
-     FROM messages m
-     JOIN users u ON u.id = m.user_id
-     WHERE m.room_id = ? AND m.deleted_at IS NULL
-     ORDER BY m.is_pinned DESC, m.created_at ASC
-     LIMIT 150`,
+    `SELECT recent.* FROM (
+       SELECT m.*, u.username, u.rank_name, u.profile_title, u.avatar_url, u.username_color, u.text_color, u.bubble_style,
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT('emoji', emoji, 'count', count)) FROM (
+          SELECT emoji, COUNT(*) AS count FROM message_reactions WHERE message_id = m.id GROUP BY emoji
+        ) r) AS reactions
+       FROM messages m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.room_id = ? AND m.deleted_at IS NULL
+       ORDER BY m.created_at DESC
+       LIMIT 150
+     ) recent
+     ORDER BY recent.is_pinned DESC, recent.created_at ASC`,
     [req.params.roomId]
   );
   res.json(rows);
@@ -86,7 +91,7 @@ router.post("/rooms/:roomId/messages", requireAuth, requireRoomAccess, upload.si
     if (!target) return res.status(404).json({ error: "No user found." });
     body = `@wb ${target.username}`;
   }
-  const attachmentUrl = req.file ? `/uploads/gallery/${req.file.filename}` : null;
+  const attachmentUrl = req.file ? fileToDataUrl(req.file) : null;
   const [result] = await pool.query(
     "INSERT INTO messages (room_id, user_id, body, attachment_url, attachment_type, reply_to_id) VALUES (?, ?, ?, ?, ?, ?)",
     [req.params.roomId, req.user.id, body, attachmentUrl, req.file?.mimetype || null, req.body.replyToId || null]
@@ -154,7 +159,7 @@ router.post("/rooms", requireAuth, roomUpload.single("image"), async (req, res) 
   const [[permission]] = await pool.query("SELECT allowed FROM role_permissions WHERE rank_name = ? AND tool = 'createRoom'", [req.user.rank_name]);
   if (req.user.rank_name !== "developer" && !permission?.allowed) return res.status(403).json({ error: "Your rank cannot create rooms." });
   const passwordHash = req.body.password ? await bcrypt.hash(String(req.body.password), 10) : null;
-  const imageUrl = req.file ? `/uploads/rooms/${req.file.filename}` : String(req.body.imageUrl || "").trim() || "/assets/room-main.svg";
+  const imageUrl = req.file ? fileToDataUrl(req.file) : String(req.body.imageUrl || "").trim() || "/assets/room-main.svg";
   const [result] = await pool.query(
     "INSERT INTO rooms (name, description, image_url, password_hash, created_by) VALUES (?, ?, ?, ?, ?)",
     [String(req.body.name || "").slice(0, 80), String(req.body.description || "").slice(0, 255), imageUrl, passwordHash, req.user.id]
@@ -206,7 +211,7 @@ router.post("/private-messages", requireAuth, upload.single("attachment"), async
   const [[blocked]] = await pool.query("SELECT COUNT(*) AS count FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)", [receiverId, req.user.id, req.user.id, receiverId]);
   if (blocked.count) return res.status(403).json({ error: "Private message blocked." });
   const body = String(form.body || "").trim().slice(0, 1200);
-  const attachmentUrl = req.file ? `/uploads/gallery/${req.file.filename}` : null;
+  const attachmentUrl = req.file ? fileToDataUrl(req.file) : null;
   if (!body && !attachmentUrl) return res.status(400).json({ error: "Message or image required." });
   const [result] = await pool.query(
     "INSERT INTO private_messages (sender_id, receiver_id, body, attachment_url, attachment_type) VALUES (?, ?, ?, ?, ?)",
