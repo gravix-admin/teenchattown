@@ -18,6 +18,7 @@ const state = {
   userTab: "all",
   unreadPm: 0,
   leaderboardTab: "xp",
+  compactLayout: null,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -182,6 +183,21 @@ function applyTheme(theme = "dark") {
   localStorage.setItem("tct_theme", theme);
 }
 
+function syncResponsiveLayout() {
+  const app = $("#app");
+  if (!app) return;
+  const compact = window.matchMedia("(max-width: 1180px)").matches;
+  if (state.compactLayout === compact) return;
+  state.compactLayout = compact;
+  if (compact) {
+    app.classList.add("right-closed");
+    app.classList.remove("nav-open");
+    return;
+  }
+  app.classList.remove("right-closed");
+  app.classList.remove("nav-open");
+}
+
 async function refreshReportBadge() {
   if (!state.me || !staffRanks.has(state.me.rank)) return setBadge($("#reportBadge"), 0);
   const reports = await api("/api/admin/reports").catch(() => []);
@@ -218,6 +234,7 @@ async function bootstrap() {
   state.currentRoomId = state.currentRoomId || state.rooms[0]?.id;
   $("#authScreen").classList.add("hidden");
   $("#app").classList.remove("hidden");
+  syncResponsiveLayout();
   $("#topName").textContent = displayName(state.me);
   $("#topAvatar").src = avatar(state.me);
   $("#reportFlagIcon").classList.toggle("hidden", !staffRanks.has(state.me.rank));
@@ -1753,6 +1770,7 @@ function bindEvents() {
 
   $$(".side-nav [data-view]").forEach((button) => button.addEventListener("click", async () => {
     setView(button.dataset.view);
+    if (state.compactLayout) $("#app").classList.remove("nav-open");
     if (button.dataset.view === "admin") await renderAdmin();
   }));
   $$("[data-close-view]").forEach((button) => button.addEventListener("click", () => setView("chat")));
@@ -1840,6 +1858,7 @@ function bindEvents() {
     }
   });
   $("#voiceButton").addEventListener("click", () => toast("Voice recording needs HTTPS on the live domain before microphone capture can start."));
+  window.addEventListener("resize", syncResponsiveLayout);
   $("#avatarUpload").addEventListener("change", () => {
     const file = $("#avatarUpload").files[0];
     if (file) $("#editAvatarPreview").src = URL.createObjectURL(file);
