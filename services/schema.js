@@ -16,6 +16,17 @@ async function ensureColumn(table, column, definition) {
   if (!rows[0].count) await query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
+async function ensureColumnDefinition(table, column, definition, dataType) {
+  await ensureColumn(table, column, definition);
+  const [rows] = await pool.query(
+    "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+    [table, column]
+  );
+  if (rows[0] && String(rows[0].DATA_TYPE || "").toLowerCase() !== dataType.toLowerCase()) {
+    await query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`${column}\` ${definition}`);
+  }
+}
+
 async function ensureAutoIncrementId(table) {
   const [columns] = await pool.query(
     "SELECT EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'id'",
@@ -53,9 +64,9 @@ async function initSchema() {
       gender VARCHAR(20) DEFAULT 'other',
       rank_name VARCHAR(32) DEFAULT 'user',
       display_name VARCHAR(40) DEFAULT '',
-      avatar_url TEXT NULL,
-      banner_url TEXT NULL,
-      animated_banner_url TEXT NULL,
+      avatar_url MEDIUMTEXT NULL,
+      banner_url MEDIUMTEXT NULL,
+      animated_banner_url MEDIUMTEXT NULL,
       profile_music_url TEXT NULL,
       profile_title VARCHAR(80) DEFAULT '',
       profile_status VARCHAR(40) DEFAULT 'Online',
@@ -94,7 +105,7 @@ async function initSchema() {
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(80) NOT NULL,
       description VARCHAR(255) NOT NULL,
-      image_url TEXT NULL,
+      image_url MEDIUMTEXT NULL,
       password_hash VARCHAR(255) NULL,
       is_pinned TINYINT DEFAULT 0,
       created_by INT NULL,
@@ -118,7 +129,7 @@ async function initSchema() {
       room_id INT NOT NULL,
       user_id INT NOT NULL,
       body TEXT,
-      attachment_url TEXT NULL,
+      attachment_url MEDIUMTEXT NULL,
       attachment_type VARCHAR(40) NULL,
       reply_to_id INT NULL,
       is_pinned TINYINT DEFAULT 0,
@@ -134,7 +145,7 @@ async function initSchema() {
       sender_id INT NOT NULL,
       receiver_id INT NOT NULL,
       body TEXT NULL,
-      attachment_url TEXT NULL,
+      attachment_url MEDIUMTEXT NULL,
       attachment_type VARCHAR(40) NULL,
       read_at DATETIME NULL,
       deleted_at DATETIME NULL,
@@ -221,7 +232,7 @@ async function initSchema() {
     CREATE TABLE IF NOT EXISTS profile_gallery (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
-      image_url TEXT NOT NULL,
+      image_url MEDIUMTEXT NULL,
       caption VARCHAR(180) DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -286,7 +297,7 @@ async function initSchema() {
       rank_name VARCHAR(32) PRIMARY KEY,
       label VARCHAR(16) NOT NULL,
       color VARCHAR(24) NOT NULL,
-      image_url TEXT NULL
+      image_url MEDIUMTEXT NULL
     )
   `);
 
@@ -321,7 +332,7 @@ async function initSchema() {
       author_id INT NOT NULL,
       title VARCHAR(120) NOT NULL,
       body TEXT NOT NULL,
-      image_url TEXT NULL,
+      image_url MEDIUMTEXT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -364,9 +375,9 @@ async function migrateExistingTables() {
       gender: "VARCHAR(20) DEFAULT 'other'",
       rank_name: "VARCHAR(32) DEFAULT 'user'",
       display_name: "VARCHAR(40) DEFAULT ''",
-      avatar_url: "TEXT NULL",
-      banner_url: "TEXT NULL",
-      animated_banner_url: "TEXT NULL",
+      avatar_url: "MEDIUMTEXT NULL",
+      banner_url: "MEDIUMTEXT NULL",
+      animated_banner_url: "MEDIUMTEXT NULL",
       profile_music_url: "TEXT NULL",
       profile_title: "VARCHAR(80) DEFAULT ''",
       profile_status: "VARCHAR(40) DEFAULT 'Online'",
@@ -401,7 +412,7 @@ async function migrateExistingTables() {
     rooms: {
       name: "VARCHAR(80) NOT NULL DEFAULT ''",
       description: "VARCHAR(255) NOT NULL DEFAULT ''",
-      image_url: "TEXT NULL",
+      image_url: "MEDIUMTEXT NULL",
       password_hash: "VARCHAR(255) NULL",
       is_pinned: "TINYINT DEFAULT 0",
       created_by: "INT NULL",
@@ -416,7 +427,7 @@ async function migrateExistingTables() {
       room_id: "INT NOT NULL DEFAULT 1",
       user_id: "INT NOT NULL DEFAULT 1",
       body: "TEXT NULL",
-      attachment_url: "TEXT NULL",
+      attachment_url: "MEDIUMTEXT NULL",
       attachment_type: "VARCHAR(40) NULL",
       reply_to_id: "INT NULL",
       is_pinned: "TINYINT DEFAULT 0",
@@ -428,7 +439,7 @@ async function migrateExistingTables() {
       sender_id: "INT NOT NULL DEFAULT 1",
       receiver_id: "INT NOT NULL DEFAULT 1",
       body: "TEXT NULL",
-      attachment_url: "TEXT NULL",
+      attachment_url: "MEDIUMTEXT NULL",
       attachment_type: "VARCHAR(40) NULL",
       read_at: "DATETIME NULL",
       deleted_at: "DATETIME NULL",
@@ -472,7 +483,7 @@ async function migrateExistingTables() {
     },
     profile_gallery: {
       user_id: "INT NOT NULL DEFAULT 1",
-      image_url: "TEXT NULL",
+      image_url: "MEDIUMTEXT NULL",
       caption: "VARCHAR(180) DEFAULT ''",
       created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     },
@@ -518,7 +529,7 @@ async function migrateExistingTables() {
       rank_name: "VARCHAR(32) NOT NULL DEFAULT ''",
       label: "VARCHAR(16) NOT NULL DEFAULT ''",
       color: "VARCHAR(24) NOT NULL DEFAULT '#8b5cf6'",
-      image_url: "TEXT NULL",
+      image_url: "MEDIUMTEXT NULL",
     },
     role_permissions: {
       rank_name: "VARCHAR(32) NOT NULL DEFAULT ''",
@@ -541,7 +552,7 @@ async function migrateExistingTables() {
       author_id: "INT NOT NULL DEFAULT 1",
       title: "VARCHAR(120) NOT NULL DEFAULT ''",
       body: "TEXT NULL",
-      image_url: "TEXT NULL",
+      image_url: "MEDIUMTEXT NULL",
       created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     },
     news_comments: {
@@ -564,6 +575,21 @@ async function migrateExistingTables() {
     await ensureAutoIncrementId(table);
     for (const [column, definition] of Object.entries(columns)) {
       await ensureColumn(table, column, definition);
+    }
+  }
+
+  const mediumTextColumns = {
+    users: ["avatar_url", "banner_url", "animated_banner_url"],
+    rooms: ["image_url"],
+    messages: ["attachment_url"],
+    private_messages: ["attachment_url"],
+    profile_gallery: ["image_url"],
+    rank_badges: ["image_url"],
+    news_posts: ["image_url"],
+  };
+  for (const [table, columns] of Object.entries(mediumTextColumns)) {
+    for (const column of columns) {
+      await ensureColumnDefinition(table, column, "MEDIUMTEXT NULL", "mediumtext");
     }
   }
 
