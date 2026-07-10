@@ -19,6 +19,7 @@ const {
 const router = express.Router();
 const avatarUpload = imageUpload("avatars");
 const bannerUpload = imageUpload("banners");
+const exposedTools = ["postNews"];
 
 function sign(user) {
   return jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -28,6 +29,14 @@ async function hasProfileTool(user, tool) {
   if (user.rank_name === "developer") return true;
   const [[row]] = await pool.query("SELECT allowed FROM role_permissions WHERE rank_name = ? AND tool = ?", [user.rank_name, tool]);
   return Boolean(row?.allowed);
+}
+
+async function userPermissions(user) {
+  if (user.rank_name === "developer") return Object.fromEntries(exposedTools.map((tool) => [tool, true]));
+  const [rows] = await pool.query("SELECT tool, allowed FROM role_permissions WHERE rank_name = ? AND tool IN (?)", [user.rank_name, exposedTools]);
+  const permissions = Object.fromEntries(exposedTools.map((tool) => [tool, false]));
+  for (const row of rows) permissions[row.tool] = Boolean(row.allowed);
+  return permissions;
 }
 
 router.post("/register", async (req, res) => {
@@ -48,9 +57,9 @@ router.post("/register", async (req, res) => {
   let result;
   try {
     [result] = await pool.query(
-      `INSERT INTO users (username, email, password_hash, dob, age, gender, ip_address, country, avatar_url, banner_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [username, email, passwordHash, dob, age, gender, ip, country, `/assets/avatar-${gender}.svg`, "/assets/profile-banner.svg"]
+      `INSERT INTO users (username, email, password_hash, dob, age, gender, ip_address, country, avatar_url, banner_url, chat_background)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [username, email, passwordHash, dob, age, gender, ip, country, `/assets/avatar-${gender}.svg`, "/assets/profile-banner.svg", "moonlake"]
     );
   } catch (error) {
     if (isDuplicateKeyError(error)) return res.status(409).json({ error: duplicateKeyMessage(error) });
@@ -115,15 +124,25 @@ router.get("/me", requireAuth, async (req, res) => {
     friendRequests,
     unreadPm: Number(privateUnread.count || 0),
     rankBadges: await rankBadges(),
+    permissions: await userPermissions(req.user),
   });
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
-  const allowed = ["displayName", "bio", "aboutMe", "mood", "theme", "bubbleStyle", "usernameColor", "textColor", "frame", "profileMusicUrl", "animatedBannerUrl", "profileTitle", "profileStatus", "profileAccent", "showOnlineStatus"];
+  const allowed = ["displayName", "bio", "aboutMe", "mood", "theme", "chatBackground", "bubbleStyle", "usernameColor", "textColor", "frame", "profileMusicUrl", "animatedBannerUrl", "profileTitle", "profileStatus", "profileAccent", "showOnlineStatus"];
   const data = {};
-  const limits = { displayName: 40, bio: 120, profileTitle: 80, profileStatus: 40, profileAccent: 24, aboutMe: 1500 };
+  const limits = { displayName: 40, bio: 120, chatBackground: 40, profileTitle: 80, profileStatus: 40, profileAccent: 24, aboutMe: 1500 };
+  const allowedChatBackgrounds = new Set(["moonlake", "autumn", "neon-city", "sunrise"]);
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
+      if (key === "chatBackground") {
+        const chatBackground = String(req.body[key] || "moonlake");
+        if (!allowedChatBackgrounds.has(chatBackground)) {
+          return res.status(400).json({ error: "Choose a valid room background." });
+        }
+        data[key] = chatBackground;
+        continue;
+      }
       if (key === "profileTitle" && String(req.body[key] || "").trim() && !(await hasProfileTool(req.user, "customTitle"))) {
         return res.status(403).json({ error: "Your rank cannot set a custom title yet." });
       }
@@ -142,6 +161,7 @@ router.patch("/me", requireAuth, async (req, res) => {
   const columns = {
     displayName: "display_name",
     aboutMe: "about_me",
+    chatBackground: "chat_background",
     bubbleStyle: "bubble_style",
     usernameColor: "username_color",
     textColor: "text_color",
@@ -199,7 +219,7 @@ router.post("/me/avatar", requireAuth, avatarUpload.single("avatar"), async (req
 
 router.post("/me/banner", requireAuth, bannerUpload.single("banner"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Choose a banner image." });
-  const url = fileToDataUrl(req.file); 
+  const url = fileToDataUrl(req.file);
   await pool.query("UPDATE users SET banner_url = ? WHERE id = ?", [url, req.user.id]);
   res.json({ bannerUrl: url });
 });
