@@ -6,6 +6,15 @@ const { requireAuth } = require("../middleware/auth");
 const { imageUpload, fileToDataUrl } = require("../services/upload");
 const { calculateAge, publicUser, rankBadges } = require("../services/userService");
 const { broadcast } = require("../services/events");
+const {
+  normalizeUsername,
+  normalizeEmail,
+  isValidUsername,
+  isValidEmail,
+  isDuplicateKeyError,
+  duplicateKeyMessage,
+  findUserIdentityConflict,
+} = require("../services/identity");
 
 const router = express.Router();
 const avatarUpload = imageUpload("avatars");
@@ -22,22 +31,31 @@ async function hasProfileTool(user, tool) {
 }
 
 router.post("/register", async (req, res) => {
-  const { username, email, password, dob, gender = "other" } = req.body;
-  if (!/^[a-zA-Z0-9_]{3,18}$/.test(username || "")) return res.status(400).json({ error: "Username must be 3-18 letters, numbers, or underscores." });
-  if (!email || !String(email).includes("@")) return res.status(400).json({ error: "Enter a valid email." });
+  const username = normalizeUsername(req.body.username);
+  const email = normalizeEmail(req.body.email);
+  const { password, dob, gender = "other" } = req.body;
+  if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-18 letters, numbers, or underscores." });
+  if (!isValidEmail(email)) return res.status(400).json({ error: "Enter a valid email." });
   if (!password || password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
   const age = calculateAge(dob);
-  if (!dob || age < 13) return res.status(400).json({ error: "You must be at least 13 to register." });
-  const [existing] = await pool.query("SELECT id FROM users WHERE username = ? OR email = ?", [username, email.toLowerCase()]);
-  if (existing.length) return res.status(409).json({ error: "Username or email already exists." });
+  if (!dob || !Number.isFinite(age) || age < 13) return res.status(400).json({ error: "You must be at least 13 to register." });
+  const conflict = await findUserIdentityConflict(pool, { username, email });
+  if (conflict.username) return res.status(409).json({ error: "This username is already taken." });
+  if (conflict.email) return res.status(409).json({ error: "This email is already taken." });
   const passwordHash = await bcrypt.hash(password, 10);
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
   const country = req.headers["cf-ipcountry"] || "Auto detected on live host";
-  const [result] = await pool.query(
-    `INSERT INTO users (username, email, password_hash, dob, age, gender, ip_address, country, avatar_url, banner_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [username, email.toLowerCase(), passwordHash, dob, age, gender, ip, country, `/assets/avatar-${gender}.svg`, "/assets/profile-banner.svg"]
-  );
+  let result;
+  try {
+    [result] = await pool.query(
+      `INSERT INTO users (username, email, password_hash, dob, age, gender, ip_address, country, avatar_url, banner_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [username, email, passwordHash, dob, age, gender, ip, country, `/assets/avatar-${gender}.svg`, "/assets/profile-banner.svg"]
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) return res.status(409).json({ error: duplicateKeyMessage(error) });
+    throw error;
+  }
   const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
   res.status(201).json({ token: sign(rows[0]) });
 });
@@ -134,18 +152,29 @@ router.patch("/me", requireAuth, async (req, res) => {
     profileAccent: "profile_accent",
     showOnlineStatus: "show_online_status",
   };
-  if (req.body.username) {
-    if (!["vip", "s-vip", "king", "queen", "premium", "moderator", "admin", "visor", "superadmin", "supervisor", "super visor", "inspector", "manager", "chief", "developer"].includes(req.user.rank_name)) {
-      return res.status(403).json({ error: "Username change requires VIP or higher." });
+  if (req.body.username !== undefined) {
+    const username = normalizeUsername(req.body.username);
+    if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-18 letters, numbers, or underscores." });
+    if (username.toLowerCase() !== String(req.user.username || "").toLowerCase()) {
+      if (!["vip", "s-vip", "king", "queen", "premium", "moderator", "admin", "visor", "superadmin", "supervisor", "super visor", "inspector", "manager", "chief", "developer"].includes(req.user.rank_name)) {
+        return res.status(403).json({ error: "Username change requires VIP or higher." });
+      }
+      const conflict = await findUserIdentityConflict(pool, { username, excludeId: req.user.id });
+      if (conflict.username) return res.status(409).json({ error: "This username is already taken." });
+      data.username = username;
     }
-    data.username = String(req.body.username).slice(0, 18);
   }
   const entries = Object.entries(data);
   if (entries.length) {
-    await pool.query(
-      `UPDATE users SET ${entries.map(([key]) => `${columns[key] || key} = ?`).join(", ")} WHERE id = ?`,
-      [...entries.map(([, value]) => value), req.user.id]
-    );
+    try {
+      await pool.query(
+        `UPDATE users SET ${entries.map(([key]) => `${columns[key] || key} = ?`).join(", ")} WHERE id = ?`,
+        [...entries.map(([, value]) => value), req.user.id]
+      );
+    } catch (error) {
+      if (isDuplicateKeyError(error)) return res.status(409).json({ error: duplicateKeyMessage(error) });
+      throw error;
+    }
   }
   await pool.query("INSERT IGNORE INTO user_achievements (user_id, achievement_id) SELECT ?, id FROM achievements WHERE code = 'profile_ready'", [req.user.id]);
   const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [req.user.id]);
