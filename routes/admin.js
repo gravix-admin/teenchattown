@@ -5,6 +5,7 @@ const { requireAuth, canControl, isStaff, rankPower } = require("../middleware/a
 const { adminStats } = require("../services/userService");
 const { ranks, staffTools } = require("../services/schema");
 const { broadcast, notifyUser } = require("../services/events");
+const { imageUpload, fileToDataUrl } = require("../services/upload");
 const {
   normalizeUsername,
   normalizeEmail,
@@ -16,6 +17,7 @@ const {
 } = require("../services/identity");
 
 const router = express.Router();
+const newsUpload = imageUpload("news");
 
 function hasPanel(user) {
   return ["admin", "chief", "developer"].includes(user.rank_name);
@@ -250,15 +252,15 @@ router.post("/permissions", async (req, res) => {
   if (rankPower(rank) >= rankPower(req.user.rank_name)) return res.status(403).json({ error: "You cannot edit that rank." });
   await pool.query("REPLACE INTO role_permissions (rank_name, tool, allowed) VALUES (?, ?, ?)", [rank, tool, allowed ? 1 : 0]);
   await log(req.user.id, "permission", "rank", null, `${rank}:${tool}:${allowed}`);
+  broadcast("users-changed", { rank, tool });
   res.json({ ok: true });
 });
 
-router.post("/news", async (req, res) => {
-  if (!hasPanel(req.user)) return res.status(403).json({ error: "Admin panel access required." });
+router.post("/news", newsUpload.single("image"), async (req, res) => {
   if (!(await permission(req.user, "postNews"))) return res.status(403).json({ error: "Your rank cannot post news." });
   const title = String(req.body.title || "").trim().slice(0, 120);
   const body = String(req.body.body || "").trim().slice(0, 2000);
-  const imageUrl = String(req.body.imageUrl || "").trim().slice(0, 500) || null;
+  const imageUrl = req.file ? fileToDataUrl(req.file) : null;
   if (!title || !body) return res.status(400).json({ error: "News title and body are required." });
   const [result] = await pool.query(
     "INSERT INTO news_posts (author_id, title, body, image_url) VALUES (?, ?, ?, ?)",
