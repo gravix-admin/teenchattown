@@ -22,6 +22,7 @@ const state = {
   unreadNews: localStorage.getItem("tct_news_unread") === "1",
   leaderboardTab: "xp",
   compactLayout: null,
+  pmExpanded: false,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -124,6 +125,36 @@ function avatar(user) {
 
 function userById(id) {
   return state.users.find((user) => Number(user.id) === Number(id));
+}
+
+function rankAtLeast(rank, minimum) {
+  const current = rankOrder.indexOf(rank === "super visor" ? "supervisor" : rank);
+  const required = rankOrder.indexOf(minimum);
+  return current >= required && required >= 0;
+}
+
+function canDeletePrivateChats() {
+  return state.me?.rank === "developer" || rankAtLeast(state.me?.rank, "admin");
+}
+
+function setDrawerChrome({ title = "", account = false, user = false, pm = false } = {}) {
+  const drawer = $("#drawer");
+  if (!drawer) return;
+  drawer.classList.toggle("account-drawer", account);
+  drawer.classList.toggle("user-drawer", user);
+  drawer.classList.toggle("pm-drawer", pm);
+  drawer.classList.toggle("pm-expanded", pm && state.pmExpanded);
+  $("#drawerTitle").textContent = title;
+  const actions = $("#drawerActions");
+  if (actions) actions.innerHTML = "";
+}
+
+function showDrawer() {
+  const drawer = $("#drawer");
+  drawer.classList.remove("hidden");
+  if (state.compactLayout && drawer.classList.contains("user-drawer")) {
+    $("#app")?.classList.add("right-closed");
+  }
 }
 
 function formatTime(value) {
@@ -305,9 +336,7 @@ function renderRoomGrid() {
 }
 
 function openRoomSwitcher() {
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Change room";
+  setDrawerChrome({ title: "Change room" });
   $("#drawerBody").innerHTML = `
     <div class="room-switch-list">
       ${state.rooms.map((room) => `
@@ -319,7 +348,7 @@ function openRoomSwitcher() {
       `).join("")}
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   $$("[data-switch-room]").forEach((button) => button.addEventListener("click", async () => {
     await switchRoom(button.dataset.switchRoom);
   }));
@@ -753,9 +782,7 @@ function renderFriends() {
 }
 
 function openFriendRequestDrawer() {
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Friend requests";
+  setDrawerChrome({ title: "Friend requests" });
   $("#drawerBody").innerHTML = state.friendRequests.map((request) => `
     <div class="friend-request-card">
       <img class="avatar" src="${html(request.avatar_url || "/assets/avatar-other.svg")}" alt="" />
@@ -763,17 +790,15 @@ function openFriendRequestDrawer() {
       <div><button data-accept="${request.id}" type="button">Accept</button><button data-decline="${request.id}" type="button">Decline</button></div>
     </div>
   `).join("") || '<p class="muted">No friend requests.</p>';
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   $$("[data-accept]", $("#drawer")).forEach((button) => button.addEventListener("click", async () => { await api(`/api/social/friend-requests/${button.dataset.accept}/accept`, { method: "POST" }); await loadFriends(); openFriendRequestDrawer(); }));
   $$("[data-decline]", $("#drawer")).forEach((button) => button.addEventListener("click", async () => { await api(`/api/social/friend-requests/${button.dataset.decline}/decline`, { method: "POST" }); await loadFriends(); openFriendRequestDrawer(); }));
 }
 
 async function openReportQueueDrawer() {
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Reports";
+  setDrawerChrome({ title: "Reports" });
   $("#drawerBody").innerHTML = '<p class="muted">Loading reports...</p>';
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   const reports = await api("/api/admin/reports");
   $("#drawerBody").innerHTML = reports.map((report) => `
     <article class="report-queue-card ${report.status !== "open" ? "handled" : ""}">
@@ -1044,9 +1069,7 @@ function openProfileActionsDrawer(userId) {
   const friend = state.friends.some((item) => Number(item.id || item.friend_id) === Number(userId));
   const blocked = state.blocks.some((item) => Number(item.blocked_id) === Number(userId));
   const staff = staffRanks.has(state.me.rank);
-  $("#drawer").classList.add("user-drawer");
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawerTitle").textContent = "";
+  setDrawerChrome({ user: true });
   $("#drawerBody").innerHTML = `
     <div class="profile-action-drawer">
       <div class="profile-action-head">
@@ -1079,7 +1102,7 @@ function openProfileActionsDrawer(userId) {
       ` : ""}
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   bindUserActionButtons(user.id);
   $("[data-user-action-panel]")?.addEventListener("click", () => openUserActionPanel(user.id));
   $$("[data-mod]").forEach((button) => button.addEventListener("click", () => {
@@ -1094,9 +1117,7 @@ function openUserActions(userId) {
   const user = userById(userId);
   if (!user) return;
   const self = Number(user.id) === Number(state.me.id);
-  $("#drawer").classList.add("user-drawer");
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawerTitle").textContent = "Profile";
+  setDrawerChrome({ title: "Profile", user: true });
   $("#drawerBody").innerHTML = `
     <div class="user-slide-card">
       <div class="user-slide-cover" style="background-image:linear-gradient(180deg,rgba(12,5,36,.08),rgba(43,16,99,.92)),url('${html(user.bannerUrl || "/assets/profile-banner.svg")}')">
@@ -1117,7 +1138,7 @@ function openUserActions(userId) {
   `;
   bindUserActionButtons(user.id);
   $("[data-user-action-panel]")?.addEventListener("click", () => openUserActionPanel(user.id));
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
 }
 
 function openUserActionPanel(userId) {
@@ -1125,9 +1146,7 @@ function openUserActionPanel(userId) {
   if (!user) return;
   const friend = state.friends.some((item) => Number(item.id || item.friend_id) === Number(userId));
   const blocked = state.blocks.some((item) => Number(item.blocked_id) === Number(userId));
-  $("#drawer").classList.add("user-drawer");
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawerTitle").textContent = "Action";
+  setDrawerChrome({ title: "Action", user: true });
   $("#drawerBody").innerHTML = `
     <div class="action-panel-card">
       <div class="action-panel-head">
@@ -1184,14 +1203,13 @@ function openUserActionPanel(userId) {
     $("#drawer").classList.add("hidden");
     await bootstrap();
   });
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
 }
 
 function openOwnMenu() {
   const info = levelInfo(state.me.xp);
   const room = state.rooms.find((item) => Number(item.id) === Number(state.currentRoomId));
-  $("#drawer").classList.add("account-drawer");
-  $("#drawerTitle").textContent = "";
+  setDrawerChrome({ account: true });
   $("#drawerBody").innerHTML = `
     <div class="account-menu-card">
       <div class="account-menu-head">
@@ -1214,7 +1232,7 @@ function openOwnMenu() {
       </div>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   bindUserActionButtons(state.me.id);
   $("[data-open-admin-panel]")?.addEventListener("click", async () => {
     $("#drawer").classList.add("hidden");
@@ -1225,9 +1243,7 @@ function openOwnMenu() {
 
 function openRoomOptionsPanel() {
   const room = state.rooms.find((item) => Number(item.id) === Number(state.currentRoomId)) || {};
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Room options";
+  setDrawerChrome({ title: "Room options" });
   $("#drawerBody").innerHTML = `
     <div class="room-options-card">
       <img src="${html(room.image_url || room.imageUrl || "/assets/room-main.svg")}" alt="" />
@@ -1237,13 +1253,11 @@ function openRoomOptionsPanel() {
       <p class="muted">Name, description, and image editing can be connected to staff permissions next.</p>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
 }
 
 function openWalletPanel() {
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Wallet";
+  setDrawerChrome({ title: "Wallet" });
   $("#drawerBody").innerHTML = `
     <div class="wallet-grid">
       <article class="wallet-card gold"><span>Gold</span><strong>${state.me.gold || 0}</strong><small>Earn 100 gold every 10 texts.</small></article>
@@ -1251,15 +1265,13 @@ function openWalletPanel() {
       <article class="wallet-card xp"><span>XP</span><strong>${state.me.xp || 0}</strong><small>Every 2 texts gives 1 XP.</small></article>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
 }
 
 function openLevelPanel() {
   const info = levelInfo(state.me.xp);
   const percent = Math.round((info.current / info.next) * 100);
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Level info";
+  setDrawerChrome({ title: "Level info" });
   $("#drawerBody").innerHTML = `
     <div class="level-card">
       <div><strong>Level ${info.level}</strong><span>${info.current} / ${info.next} XP</span></div>
@@ -1269,14 +1281,12 @@ function openLevelPanel() {
       <div class="request-row"><span>Texts sent</span><strong>${state.me.messageCount || 0}</strong></div>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
 }
 
 function openChatOptionsPanel() {
   const current = localStorage.getItem("tct_theme") || document.body.dataset.theme || "dark";
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Chat options";
+  setDrawerChrome({ title: "Chat options" });
   $("#drawerBody").innerHTML = `
     <div class="theme-panel">
       <h3>Theme</h3>
@@ -1291,7 +1301,7 @@ function openChatOptionsPanel() {
       </div>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   $$("[data-theme-choice]").forEach((button) => button.addEventListener("click", () => {
     applyTheme(button.dataset.themeChoice);
     $$("[data-theme-choice]").forEach((node) => node.classList.toggle("active", node === button));
@@ -1528,6 +1538,50 @@ async function moderate(userId, action, extra = {}) {
   await bootstrap();
 }
 
+function renderPmDrawerActions(user) {
+  const actions = $("#drawerActions");
+  if (!actions) return;
+  actions.innerHTML = `
+    <button class="drawer-icon-button" id="pmExpandButton" type="button" title="${state.pmExpanded ? "Make private message smaller" : "Make private message bigger"}">
+      ${state.pmExpanded
+        ? '<svg viewBox="0 0 24 24"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>'}
+    </button>
+    <div class="pm-settings-wrap">
+      <button class="drawer-icon-button" id="pmSettingsButton" type="button" title="Private message settings">
+        <svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.6 2.2-1.7-.9a7 7 0 0 0-.7-1.7l.6-1.8-1.1-1.1-1.8.6a7 7 0 0 0-1.7-.7L13.3 3h-2.6l-.9 2.1a7 7 0 0 0-1.7.7l-1.8-.6-1.1 1.1.6 1.8a7 7 0 0 0-.7 1.7l-1.7.9v2.6l1.7.9c.2.6.4 1.2.7 1.7l-.6 1.8 1.1 1.1 1.8-.6c.5.3 1.1.6 1.7.7l.9 2.1h2.6l.9-2.1c.6-.2 1.2-.4 1.7-.7l1.8.6 1.1-1.1-.6-1.8c.3-.5.6-1.1.7-1.7l1.7-.9v-2.6Z"/></svg>
+      </button>
+      <div class="pm-settings-menu hidden" id="pmSettingsMenu">
+        <button data-report-chat="${user.id}" type="button"><svg viewBox="0 0 24 24"><path d="M5 21V4h10l1 2h4v10h-8l-1-2H7v7z"/></svg><span>Report chat</span></button>
+        ${canDeletePrivateChats() ? `<button data-delete-pm-chat="${user.id}" class="danger-menu-action" type="button"><svg viewBox="0 0 24 24"><path d="M8 9h2v9H8V9Zm6 0h2v9h-2V9ZM4 6h16v2H4V6Zm3 2h10l-1 13H8L7 8Zm3-5h4l1 2H9l1-2Z"/></svg><span>Delete chat</span></button>` : ""}
+      </div>
+    </div>
+  `;
+  $("#pmExpandButton")?.addEventListener("click", () => {
+    state.pmExpanded = !state.pmExpanded;
+    $("#drawer").classList.toggle("pm-expanded", state.pmExpanded);
+    renderPmDrawerActions(user);
+    const thread = $("#pmThread");
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  });
+  $("#pmSettingsButton")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    $("#pmSettingsMenu")?.classList.toggle("hidden");
+  });
+  $("[data-report-chat]", actions)?.addEventListener("click", () => {
+    $("#pmSettingsMenu")?.classList.add("hidden");
+    openReportModal({ targetType: "private_chat", targetUserId: user.id, label: `private chat with ${displayName(user)}` });
+  });
+  $("[data-delete-pm-chat]", actions)?.addEventListener("click", async () => {
+    $("#pmSettingsMenu")?.classList.add("hidden");
+    if (!confirm(`Delete the private chat with ${displayName(user)}? This removes the conversation for both users.`)) return;
+    await api(`/api/chat/private-messages/${user.id}`, { method: "DELETE" });
+    toast("Private chat deleted.");
+    await loadPm(user.id);
+    openPmConversations().catch((error) => toast(error.message));
+  });
+}
+
 function openPm(userId, fallbackUser = null) {
   const numericUserId = Number(userId);
   if (!numericUserId || numericUserId === Number(state.me.id)) return toast("Choose another user to message.");
@@ -1536,9 +1590,8 @@ function openPm(userId, fallbackUser = null) {
   if ($("#profileModal").open) $("#profileModal").close();
   state.activePmUserId = numericUserId;
   state.pmUploadFile = null;
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Private message";
+  setDrawerChrome({ title: "Private message", pm: true });
+  renderPmDrawerActions(user);
   $("#drawerBody").innerHTML = `
     <div class="pm-card">
       <div class="pm-head">
@@ -1550,17 +1603,19 @@ function openPm(userId, fallbackUser = null) {
         </span>
       </div>
       <div id="pmThread" class="pm-thread"></div>
-      <input id="pmAttachment" class="hidden" type="file" accept="image/*" />
-      <div id="pmUploadPreview" class="upload-preview hidden"></div>
-      <form id="pmForm" class="composer-input pm-composer">
-        <button class="composer-icon" id="pmEmojiButton" type="button" title="Emoji"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM8 9.5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm8 0a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm-4 7.2c-2.2 0-4-1.2-5-3h10c-1 1.8-2.8 3-5 3Z"/></svg></button>
-        <input id="pmInput" placeholder="Type here.." />
-        <button class="composer-icon" id="pmUploadButton" type="button" title="Send image"><svg viewBox="0 0 24 24"><path d="M5 5h3l1.5-2h5L16 5h3a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm7 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2.2a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6Z"/></svg></button>
-        <button class="send icon-send" type="submit" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l13 2-13 2z"/></svg></button>
-      </form>
+      <div class="pm-composer-shell">
+        <input id="pmAttachment" class="hidden" type="file" accept="image/*" />
+        <div id="pmUploadPreview" class="upload-preview hidden"></div>
+        <form id="pmForm" class="composer-input pm-composer">
+          <button class="composer-icon" id="pmEmojiButton" type="button" title="Emoji"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM8 9.5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm8 0a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm-4 7.2c-2.2 0-4-1.2-5-3h10c-1 1.8-2.8 3-5 3Z"/></svg></button>
+          <input id="pmInput" placeholder="Type here.." />
+          <button class="composer-icon" id="pmUploadButton" type="button" title="Send image"><svg viewBox="0 0 24 24"><path d="M5 5h3l1.5-2h5L16 5h3a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm7 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2.2a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6Z"/></svg></button>
+          <button class="send icon-send" type="submit" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l13 2-13 2z"/></svg></button>
+        </form>
+      </div>
     </div>
   `;
-  $("#drawer").classList.remove("hidden");
+  showDrawer();
   loadPm(numericUserId).catch((error) => {
     $("#pmThread").innerHTML = `<p class="muted">${html(error.message)}</p>`;
   });
@@ -1620,10 +1675,8 @@ async function loadPm(userId) {
 
 async function openPmConversations() {
   state.activePmUserId = null;
-  $("#drawer").classList.remove("account-drawer");
-  $("#drawer").classList.remove("user-drawer");
-  $("#drawerTitle").textContent = "Private messages";
-  $("#drawer").classList.remove("hidden");
+  setDrawerChrome({ title: "Private messages" });
+  showDrawer();
   const startUsers = state.users
     .filter((user) => Number(user.id) !== Number(state.me.id) && visibleInUserList(user))
     .sort((a, b) => Number(isOnline(b)) - Number(isOnline(a)) || displayName(a).localeCompare(displayName(b)));
@@ -1761,6 +1814,15 @@ async function renderAdmin() {
           ${["open", "reviewing", "resolved", "dismissed"].map((status) => `<option value="${status}" ${status === report.status ? "selected" : ""}>${status}</option>`).join("")}
         </select>
       </div>`).join("") || '<p class="muted">No reports yet.</p>'}</div></section>
+    <section class="panel admin-panel"><h2>Private chats</h2><div class="admin-table">${(data.privateConversations || []).map((chat) => `
+      <div class="admin-private-row">
+        <span class="private-chat-pair">
+          <img class="avatar" src="${html(chat.user_one_avatar || "/assets/avatar-other.svg")}" alt="" />
+          <img class="avatar" src="${html(chat.user_two_avatar || "/assets/avatar-other.svg")}" alt="" />
+        </span>
+        <span><strong>${html(chat.user_one_name)} and ${html(chat.user_two_name)}</strong><small>${Number(chat.message_count || 0)} messages | ${html(chat.last_body || "Image")} | ${formatDate(chat.last_message_at)} ${formatTime(chat.last_message_at)}</small></span>
+        <button data-admin-delete-chat="${chat.user_one_id}:${chat.user_two_id}" type="button">Delete chat</button>
+      </div>`).join("") || '<p class="muted">No private chats yet.</p>'}</div></section>
     <section class="panel admin-panel"><h2>Rank permissions</h2><div class="permission-grid">${data.ranks.filter((rank) => rank !== "developer").map((rank) => `<article class="permission-card"><strong>${html(rank)}</strong>${data.staffTools.map((tool) => `<label><input type="checkbox" data-permission-rank="${html(rank)}" data-permission-tool="${html(tool)}" ${data.permissions.find((p) => p.rank_name === rank && p.tool === tool && p.allowed) ? "checked" : ""}/> ${html(permissionLabel(tool))}</label>`).join("")}</article>`).join("")}</div></section>
     <section class="panel admin-panel"><h2>Rank badges</h2><div class="badge-editor">${data.ranks.filter((rank) => rank !== "developer").map((rank) => {
       const badge = state.rankBadges[rank] || {};
@@ -1799,6 +1861,13 @@ async function renderAdmin() {
   $$("[data-report-status]").forEach((select) => select.addEventListener("change", async () => {
     await api(`/api/admin/reports/${select.dataset.reportStatus}`, { method: "PATCH", body: JSON.stringify({ status: select.value }) });
     toast("Report updated.");
+  }));
+  $$("[data-admin-delete-chat]").forEach((button) => button.addEventListener("click", async () => {
+    const [userOneId, userTwoId] = button.dataset.adminDeleteChat.split(":");
+    if (!confirm("Delete this private chat for both users?")) return;
+    await api(`/api/admin/private-conversations/${userOneId}/${userTwoId}`, { method: "DELETE" });
+    toast("Private chat deleted.");
+    await renderAdmin();
   }));
   $$("[data-permission-rank]").forEach((input) => input.addEventListener("change", async () => {
     await api("/api/admin/permissions", { method: "POST", body: JSON.stringify({ rank: input.dataset.permissionRank, tool: input.dataset.permissionTool, allowed: input.checked }) });
@@ -1852,6 +1921,19 @@ function connectEvents() {
     if (!state.activePmUserId && !$("#drawer").classList.contains("hidden") && $("#drawerTitle").textContent === "Private messages") {
       openPmConversations().catch(() => {});
     }
+  });
+  state.eventSource.addEventListener("private-chat-deleted", (event) => {
+    const data = JSON.parse(event.data || "{}");
+    const affectedIds = [data.otherUserId, data.userOneId, data.userTwoId].map(Number).filter(Boolean);
+    if (state.activePmUserId && affectedIds.includes(Number(state.activePmUserId)) && !$("#drawer").classList.contains("hidden")) {
+      loadPm(state.activePmUserId).catch(() => {});
+      toast("This private chat was deleted by staff.");
+      return;
+    }
+    if (!state.activePmUserId && !$("#drawer").classList.contains("hidden") && $("#drawerTitle").textContent === "Private messages") {
+      openPmConversations().catch(() => {});
+    }
+    refreshPmUnread().catch(() => {});
   });
   state.eventSource.addEventListener("moderation", (event) => {
     const data = JSON.parse(event.data);
@@ -1963,12 +2045,10 @@ function bindEvents() {
   $("#pmIcon").addEventListener("click", () => openPmConversations());
   $("#friendIcon").addEventListener("click", () => openFriendRequestDrawer());
   $("#notificationIcon").addEventListener("click", async () => {
-    $("#drawer").classList.remove("account-drawer");
-    $("#drawer").classList.remove("user-drawer");
-    $("#drawerTitle").textContent = "Notifications";
+    setDrawerChrome({ title: "Notifications" });
     const rows = await api("/api/social/notifications");
     $("#drawerBody").innerHTML = rows.map((n) => `<div class="request-row"><span><strong>${html(n.title)}</strong><small>${html(n.body)}</small></span></div>`).join("") || '<p class="muted">No notifications.</p>';
-    $("#drawer").classList.remove("hidden");
+    showDrawer();
     await api("/api/social/notifications/read", { method: "POST" });
     state.notifications = rows.map((row) => ({ ...row, is_read: 1 }));
     setBadges();
@@ -1981,7 +2061,7 @@ function bindEvents() {
     if (!event.target.closest(".message-menu-wrap")) closeMessageMenus();
     if (!event.target.closest(".emoji-picker") && !event.target.closest("#emojiButton") && !event.target.closest("#pmEmojiButton")) $(".emoji-picker")?.remove();
     const drawer = $("#drawer");
-    const drawerTrigger = event.target.closest("#profileButton, #pmIcon, #friendIcon, #notificationIcon, #reportFlagIcon, #roomSwitchButton, [data-user-id], [data-open-user-menu], [data-open-profile-actions], [data-user-action-panel], [data-pm-user], [data-pm-open], [data-pm-start], [data-own-action], [data-view-profile]");
+    const drawerTrigger = event.target.closest("#profileButton, #pmIcon, #friendIcon, #notificationIcon, #reportFlagIcon, #roomSwitchButton, #pmSettingsButton, #pmExpandButton, [data-user-id], [data-open-user-menu], [data-open-profile-actions], [data-user-action-panel], [data-pm-user], [data-pm-open], [data-pm-start], [data-own-action], [data-view-profile], [data-report-chat], [data-delete-pm-chat]");
     if (drawer && !drawer.classList.contains("hidden") && !event.target.closest("#drawer") && !drawerTrigger) {
       drawer.classList.add("hidden");
       state.activePmUserId = null;
