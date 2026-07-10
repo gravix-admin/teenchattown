@@ -1,4 +1,5 @@
 :root {
+  --topbar-height: 64px;
   --bg: #0b1020;
   --bg-soft: #102236;
   --panel: rgba(17, 27, 47, 0.9);
@@ -702,13 +703,34 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   position: fixed;
   top: 72px;
   right: 16px;
-  z-index: 30;
+  z-index: 70;
   width: min(420px, calc(100% - 32px));
   max-height: calc(100vh - 92px);
   overflow: auto;
   border-radius: 20px;
 }
-.drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 14px; border-bottom: 1px solid var(--line); }
+.drawer-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.drawer-head h2 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.drawer-actions:empty {
+  display: none;
+}
 #drawer.account-drawer .drawer-head { display: none; }
 #drawerBody { padding: 14px; }
 .modal {
@@ -1624,7 +1646,8 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   gap: 8px;
   align-items: start;
 }
-.panel-close-button {
+.panel-close-button,
+.drawer-icon-button {
   display: grid;
   width: 38px;
   height: 38px;
@@ -1635,14 +1658,17 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   color: var(--text);
   background: rgba(255,255,255,.08);
 }
-.panel-close-button:hover { transform: translateY(-1px); background: rgba(255,255,255,.14); }
-.panel-close-button svg {
+.panel-close-button:hover,
+.drawer-icon-button:hover { transform: translateY(-1px); background: rgba(255,255,255,.14); }
+.panel-close-button svg,
+.drawer-icon-button svg {
   width: 18px;
   height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2.4;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .drawer-head .panel-close-button { width: 36px; height: 36px; min-height: 36px; }
 .room-grid {
@@ -1847,8 +1873,94 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .staff-quick-tools textarea { min-height: 74px; border-radius: 12px; }
 .pm-card {
   display: grid;
-  gap: 12px;
   margin: -4px;
+}
+.pm-settings-wrap {
+  position: relative;
+}
+.pm-settings-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  background: rgba(19, 45, 67, .98);
+  box-shadow: var(--shadow);
+}
+.pm-settings-menu button {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  font-weight: 900;
+}
+.pm-settings-menu button:hover {
+  background: rgba(255,255,255,.1);
+}
+.pm-settings-menu svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.pm-settings-menu .danger-menu-action {
+  color: #fecaca;
+}
+#drawer.pm-drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: min(720px, calc(100dvh - 92px));
+  max-height: calc(100dvh - 92px);
+  overflow: hidden;
+}
+#drawer.pm-expanded {
+  inset: calc(var(--topbar-height, 64px) + 10px) 10px 10px 10px;
+  width: auto;
+  height: auto;
+  max-height: none;
+}
+#drawer.pm-drawer #drawerBody {
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+#drawer.pm-drawer .pm-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+}
+#drawer.pm-drawer .pm-head {
+  margin: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+#drawer.pm-drawer .pm-thread {
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border-width: 0;
+  border-radius: 0;
+}
+.pm-composer-shell {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  background: linear-gradient(135deg, rgba(139,92,246,.16), rgba(34,211,238,.07));
 }
 .right-tabs button {
   display: grid;
@@ -1974,7 +2086,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 }
 .eyebrow { color: var(--cyan); text-transform: uppercase; letter-spacing: .08em; font-size: .72rem; font-weight: 900; }
 .admin-panel h2 { margin-top: 0; }
-.admin-user-row, .report-row {
+.admin-user-row, .report-row, .admin-private-row {
   display: grid;
   grid-template-columns: 42px 1fr auto auto;
   gap: 10px;
@@ -1984,7 +2096,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   padding: 10px;
   background: rgba(255,255,255,.055);
 }
-.admin-user-row button, .admin-user-row select, .report-row select, .badge-edit-row button {
+.admin-user-row button, .admin-user-row select, .report-row select, .admin-private-row button, .badge-edit-row button {
   min-height: 38px;
   border: 0;
   border-radius: 12px;
@@ -1994,6 +2106,32 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .admin-user-row select, .report-row select { width: 150px; }
 .report-row { grid-template-columns: 1fr 1.4fr 150px; }
 .report-row p { margin: 0; color: var(--text); }
+.admin-private-row {
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+}
+.admin-private-row small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.private-chat-pair {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 42px;
+}
+.private-chat-pair .avatar {
+  position: absolute;
+  top: 4px;
+  width: 38px;
+  height: 38px;
+  border: 2px solid rgba(255,255,255,.18);
+  background: var(--panel-2);
+}
+.private-chat-pair .avatar:first-child { left: 0; }
+.private-chat-pair .avatar:last-child { right: 0; }
 .permission-grid, .badge-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .permission-card, .badge-edit-row {
   display: grid;
@@ -2275,6 +2413,20 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
     pointer-events: none;
     transform: translateX(calc(100% + 18px));
   }
+  .drawer {
+    top: calc(var(--topbar-height) + 8px);
+    right: 8px;
+    z-index: 70;
+    width: min(430px, calc(100vw - 16px));
+    max-height: calc(100dvh - var(--topbar-height) - 16px);
+  }
+  #drawer.pm-drawer {
+    height: calc(100dvh - var(--topbar-height) - 16px);
+    max-height: calc(100dvh - var(--topbar-height) - 16px);
+  }
+  #drawer.pm-expanded {
+    inset: calc(var(--topbar-height) + 6px) 6px 6px 6px;
+  }
   .panel-grid, .vip-grid, .profile-grid, .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gallery-form, .room-create-form, .news-form { grid-template-columns: 1fr 1fr; }
 }
@@ -2350,7 +2502,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
     padding: 0 8px;
   }
   .panel-grid, .vip-grid, .profile-grid, .room-grid, .admin-stats, .profile-detail-bubbles, .leaderboard-tabs { grid-template-columns: 1fr; }
-  .wall-form, .gallery-form, .room-create-form, .news-form, .admin-user-row, .report-row, .news-card { grid-template-columns: 1fr; }
+  .wall-form, .gallery-form, .room-create-form, .news-form, .admin-user-row, .report-row, .admin-private-row, .news-card { grid-template-columns: 1fr; }
   .profile-modal {
     width: calc(100% - 18px);
     max-height: calc(100dvh - 18px);
@@ -2418,6 +2570,7 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 }
 
 @media (max-width: 520px) {
+  :root { --topbar-height: 58px; }
   .app { --topbar-height: 58px; }
   .topbar {
     grid-template-columns: 36px minmax(0, 1fr) auto;
@@ -2537,9 +2690,26 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   .pm-head-action {
     flex: 1;
   }
+  .drawer-head {
+    gap: 6px;
+    padding: 10px;
+  }
+  .drawer-head .panel-close-button,
+  .drawer-icon-button {
+    width: 34px;
+    min-height: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+  .drawer-head h2 {
+    font-size: 1.05rem;
+  }
   .composer-input {
     grid-template-columns: 34px minmax(0, 1fr) 34px 34px 34px;
     min-height: 44px;
+  }
+  .pm-composer {
+    grid-template-columns: 34px minmax(0, 1fr) 34px 34px;
   }
   .composer-icon, .icon-send {
     width: 34px;
