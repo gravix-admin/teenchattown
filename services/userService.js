@@ -33,6 +33,7 @@ function publicUser(user, viewer = null) {
     aboutMe: user.about_me,
     mood: user.mood,
     theme: user.theme,
+    chatBackground: user.chat_background,
     bubbleStyle: user.bubble_style,
     usernameColor: user.username_color,
     textColor: user.text_color,
