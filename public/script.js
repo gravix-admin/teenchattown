@@ -1987,6 +1987,60 @@ async function logout() {
   location.reload();
 }
 
+function fillSelect(select, placeholder, items) {
+  if (!select) return;
+  select.innerHTML = `<option value="">${placeholder}</option>${items.map(([value, label]) => `<option value="${html(value)}">${html(label)}</option>`).join("")}`;
+}
+
+function setupDobSelects() {
+  const day = $("#dobDay");
+  const month = $("#dobMonth");
+  const year = $("#dobYear");
+  const input = $("#dobInput");
+  if (!day || !month || !year || !input) return;
+
+  const months = [
+    ["01", "Jan"],
+    ["02", "Feb"],
+    ["03", "Mar"],
+    ["04", "Apr"],
+    ["05", "May"],
+    ["06", "Jun"],
+    ["07", "Jul"],
+    ["08", "Aug"],
+    ["09", "Sep"],
+    ["10", "Oct"],
+    ["11", "Nov"],
+    ["12", "Dec"],
+  ];
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_item, index) => {
+    const value = String(currentYear - 13 - index);
+    return [value, value];
+  });
+
+  fillSelect(month, "Month", months);
+  fillSelect(year, "Year", years);
+
+  const updateDays = () => {
+    const selected = day.value;
+    const total = month.value && year.value ? new Date(Number(year.value), Number(month.value), 0).getDate() : 31;
+    fillSelect(day, "Day", Array.from({ length: total }, (_item, index) => {
+      const value = String(index + 1).padStart(2, "0");
+      return [value, value];
+    }));
+    if (selected && Number(selected) <= total) day.value = selected;
+  };
+
+  const updateValue = () => {
+    updateDays();
+    input.value = day.value && month.value && year.value ? `${year.value}-${month.value}-${day.value}` : "";
+  };
+
+  updateDays();
+  [day, month, year].forEach((select) => select.addEventListener("change", updateValue));
+}
+
 function bindEvents() {
   $$("[data-auth-tab]").forEach((button) => button.addEventListener("click", () => {
     $$("[data-auth-tab]").forEach((node) => node.classList.remove("active"));
@@ -2010,7 +2064,15 @@ function bindEvents() {
   $("#registerForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      const data = await api("/api/auth/register", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
+      const payload = Object.fromEntries(new FormData(event.currentTarget));
+      if (!payload.dob) {
+        $("#authMessage").textContent = "Choose your day, month, and year of birth.";
+        return;
+      }
+      delete payload.dobDay;
+      delete payload.dobMonth;
+      delete payload.dobYear;
+      const data = await api("/api/auth/register", { method: "POST", body: JSON.stringify(payload) });
       state.token = data.token;
       localStorage.setItem("tct_token", state.token);
       await bootstrap();
@@ -2161,5 +2223,6 @@ function bindEvents() {
 }
 
 applyTheme(localStorage.getItem("tct_theme") || "dark");
+setupDobSelects();
 bindEvents();
 if (state.token) bootstrap().catch(() => localStorage.removeItem("tct_token"));
