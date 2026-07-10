@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const pool = require("../database");
-const { requireAuth, isStaff } = require("../middleware/auth");
+const { requireAuth, isStaff, rankPower } = require("../middleware/auth");
 const { imageUpload, fileToDataUrl } = require("../services/upload");
 const { addClient, removeClient, broadcast, notifyUser } = require("../services/events");
 const { publicUser } = require("../services/userService");
@@ -42,6 +42,10 @@ async function hasTool(user, tool) {
   if (!row && tool === "sendPm") return true;
   if (!row && tool === "sendFiles") return user.rank_name !== "vip";
   return Boolean(row?.allowed);
+}
+
+async function canDeletePrivateChats(user) {
+  return isStaff(user) && rankPower(user.rank_name) >= rankPower("admin") && (await hasTool(user, "deleteMessage"));
 }
 
 router.get("/events", requireAuth, async (req, res) => {
@@ -260,6 +264,21 @@ router.get("/private-messages/:userId", requireAuth, async (req, res) => {
   );
   await pool.query("UPDATE private_messages SET read_at = NOW() WHERE receiver_id = ? AND sender_id = ? AND read_at IS NULL", [req.user.id, req.params.userId]);
   res.json(rows);
+});
+
+router.delete("/private-messages/:userId", requireAuth, async (req, res) => {
+  if (!(await canDeletePrivateChats(req.user))) return res.status(403).json({ error: "Only higher staff can delete private chats." });
+  const otherUserId = Number(req.params.userId);
+  if (!otherUserId || otherUserId === Number(req.user.id)) return res.status(400).json({ error: "Choose another user chat to delete." });
+  const [result] = await pool.query(
+    `UPDATE private_messages
+     SET deleted_at = NOW()
+     WHERE deleted_at IS NULL
+       AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`,
+    [req.user.id, otherUserId, otherUserId, req.user.id]
+  );
+  notifyUser(otherUserId, "private-chat-deleted", { otherUserId: req.user.id, by: req.user.id });
+  res.json({ ok: true, deleted: result.affectedRows || 0 });
 });
 
 module.exports = router;
