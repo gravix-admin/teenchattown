@@ -164,6 +164,12 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
 .gender-row label { display: flex; gap: 6px; align-items: center; }
 .gender-row input { width: auto; min-height: auto; }
 .field-label { display: grid; gap: 8px; color: var(--muted); }
+.dob-selects {
+  display: grid;
+  grid-template-columns: .85fr 1fr 1fr;
+  gap: 8px;
+}
+.dob-selects select { min-width: 0; }
 #authMessage { color: var(--danger); }
 .app {
   --topbar-height: 64px;
@@ -2631,6 +2637,9 @@ textarea { min-height: 110px; padding: 12px 13px; resize: vertical; }
   .auth-card {
     align-self: start;
     padding: 18px;
+  }
+  .dob-selects {
+    grid-template-columns: 1fr;
   }
 }
 
