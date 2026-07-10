@@ -1661,16 +1661,9 @@ async function loadPm(userId) {
       <span><strong>${html(row.sender_username)}</strong><small>${formatTime(row.created_at)}${row.read_at ? " | seen" : ""}</small></span>
       ${row.body ? `<p>${html(row.body)}</p>` : ""}
       ${row.attachment_url ? `<img class="pm-attachment" src="${html(row.attachment_url)}" alt="Private message attachment" />` : ""}
-      ${Number(row.sender_id) !== Number(state.me.id) ? `<button data-report-pm="${row.id}" data-pm-user="${row.sender_id}" type="button">Report</button>` : ""}
     </div>
   `).join("") || '<p class="muted">No private messages yet.</p>';
   $("#pmThread").scrollTop = $("#pmThread").scrollHeight;
-  $$("[data-report-pm]").forEach((button) => button.addEventListener("click", () => openReportModal({
-    targetType: "private_message",
-    privateMessageId: button.dataset.reportPm,
-    targetUserId: button.dataset.pmUser,
-    label: `private message #${button.dataset.reportPm}`,
-  })));
 }
 
 async function openPmConversations() {
