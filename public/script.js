@@ -52,6 +52,14 @@ const themeChoices = [
   ["neon", "Neon", "#111827"],
   ["glass", "Glass", "#223044"],
 ];
+const roomBackgroundChoices = [
+  ["", "Room default", "/assets/room-main.svg"],
+  ["moonlake", "Moon Lake", "/assets/room-bg-moonlake.webp"],
+  ["autumn", "Autumn Trail", "/assets/room-bg-autumn.webp"],
+  ["neon-city", "Neon Rain", "/assets/room-bg-neon-city.webp"],
+  ["sunrise", "Sunrise Valley", "/assets/room-bg-sunrise.webp"],
+];
+const roomBackgroundUrls = Object.fromEntries(roomBackgroundChoices.map(([id, _label, url]) => [id, url]));
 
 function roomLocked(room) {
   return Boolean(room?.locked || room?.password_hash);
@@ -238,6 +246,20 @@ function applyTheme(theme = "dark") {
   localStorage.setItem("tct_theme", theme);
 }
 
+function cssUrl(value) {
+  return `url(${JSON.stringify(value)})`;
+}
+
+function currentRoomImage() {
+  const room = state.rooms.find((item) => Number(item.id) === Number(state.currentRoomId));
+  return room?.image_url || room?.imageUrl || "/assets/room-main.svg";
+}
+
+function applyRoomBackground() {
+  const selected = roomBackgroundUrls[state.me?.chatBackground || ""];
+  document.body.style.setProperty("--room-image", cssUrl(selected || currentRoomImage()));
+}
+
 function setTypingIdle() {
   const typing = $("#typingText");
   if (typing) typing.textContent = "No one is typing";
@@ -316,7 +338,7 @@ function renderRooms() {
   if (room) {
     $("#roomTitle").textContent = room.name;
     $("#roomDescription").textContent = room.description;
-    document.body.style.setProperty("--room-image", `url('${room.image_url || "/assets/room-main.svg"}')`);
+    applyRoomBackground();
   }
   renderRoomGrid();
 }
@@ -434,7 +456,7 @@ function renderMessages() {
     return `
       <article class="message ${isOwn ? "own" : ""}${bubbleClass}" data-message-id="${message.id}">
         <button class="message-avatar-button" data-message-profile="${message.user_id}" type="button" title="View profile">
-          <img class="avatar" src="${html(avatar(user))}" alt="" />
+          <img class="avatar" src="${html(avatar(user))}" alt="" loading="lazy" decoding="async" />
         </button>
         <div class="message-card" style="--message-color:${html(user.textColor || "#fbf7ff")}">
           <div class="message-topline">
@@ -450,7 +472,7 @@ function renderMessages() {
           </div>
           ${reply ? `<div class="reply-preview"><strong>@${html(reply.username)}</strong><span>${html(String(reply.body || "").slice(0, 90))}</span></div>` : ""}
           <p>${renderMessageBody(message.body || "")}</p>
-          ${message.attachment_url ? `<img class="attachment" src="${html(message.attachment_url)}" alt="attachment" />` : ""}
+          ${message.attachment_url ? `<img class="attachment" src="${html(message.attachment_url)}" alt="attachment" loading="lazy" decoding="async" />` : ""}
           <div class="badge-grid">${reactions.map((reaction) => `<span class="rank-pill">${html(reaction.emoji)} ${reaction.count}</span>`).join("")}</div>
         </div>
       </article>
@@ -1286,6 +1308,8 @@ function openLevelPanel() {
 
 function openChatOptionsPanel() {
   const current = localStorage.getItem("tct_theme") || document.body.dataset.theme || "dark";
+  const currentBackground = state.me?.chatBackground || "";
+  const defaultRoomImage = currentRoomImage();
   setDrawerChrome({ title: "Chat options" });
   $("#drawerBody").innerHTML = `
     <div class="theme-panel">
@@ -1299,6 +1323,18 @@ function openChatOptionsPanel() {
           </button>
         `).join("")}
       </div>
+      <h3>Room background</h3>
+      <div class="background-choice-grid">
+        ${roomBackgroundChoices.map(([id, label, url]) => {
+          const preview = id ? url : defaultRoomImage;
+          return `
+            <button class="${id === currentBackground ? "active" : ""}" data-room-background="${html(id)}" type="button">
+              <span style="background-image:url('${html(preview)}')"></span>
+              <strong>${html(label)}</strong>
+            </button>
+          `;
+        }).join("")}
+      </div>
     </div>
   `;
   showDrawer();
@@ -1306,6 +1342,21 @@ function openChatOptionsPanel() {
     applyTheme(button.dataset.themeChoice);
     $$("[data-theme-choice]").forEach((node) => node.classList.toggle("active", node === button));
     toast(`${button.textContent.trim()} theme applied.`);
+  }));
+  $$("[data-room-background]").forEach((button) => button.addEventListener("click", async () => {
+    const chatBackground = button.dataset.roomBackground || "";
+    button.disabled = true;
+    try {
+      const data = await api("/api/auth/me", { method: "PATCH", body: JSON.stringify({ chatBackground }) });
+      state.me = data.me || { ...state.me, chatBackground };
+      applyRoomBackground();
+      $$("[data-room-background]").forEach((node) => node.classList.toggle("active", node === button));
+      toast(`${button.textContent.trim()} background applied.`);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
   }));
 }
 
