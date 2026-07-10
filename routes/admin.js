@@ -18,6 +18,10 @@ async function permission(user, tool) {
   return Boolean(row?.allowed);
 }
 
+async function canDeletePrivateChats(user) {
+  return isStaff(user) && rankPower(user.rank_name) >= rankPower("admin") && (await permission(user, "deleteMessage"));
+}
+
 async function log(actorId, action, targetType, targetId, details = "") {
   await pool.query("INSERT INTO admin_logs (actor_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)", [actorId, action, targetType, targetId, details]);
 }
@@ -38,12 +42,33 @@ router.get("/dashboard", async (req, res) => {
      LEFT JOIN users target ON target.id = r.target_user_id
      ORDER BY r.created_at DESC LIMIT 50`
   );
+  const [privateConversations] = await pool.query(
+    `SELECT c.user_one_id, u1.username AS user_one_name, u1.avatar_url AS user_one_avatar,
+            c.user_two_id, u2.username AS user_two_name, u2.avatar_url AS user_two_avatar,
+            c.message_count, latest.created_at AS last_message_at,
+            COALESCE(NULLIF(latest.body, ''), 'Image') AS last_body
+     FROM (
+       SELECT LEAST(sender_id, receiver_id) AS user_one_id,
+              GREATEST(sender_id, receiver_id) AS user_two_id,
+              MAX(id) AS last_message_id,
+              COUNT(*) AS message_count
+       FROM private_messages
+       WHERE deleted_at IS NULL
+       GROUP BY user_one_id, user_two_id
+     ) c
+     JOIN private_messages latest ON latest.id = c.last_message_id
+     JOIN users u1 ON u1.id = c.user_one_id
+     JOIN users u2 ON u2.id = c.user_two_id
+     ORDER BY latest.created_at DESC
+     LIMIT 50`
+  );
   res.json({
     stats: await adminStats(),
     users,
     permissions,
     logs,
     reports,
+    privateConversations,
     ranks,
     staffTools,
   });
@@ -171,6 +196,25 @@ router.post("/reports/:id/action", async (req, res) => {
     wallPostId: report.wall_post_id,
   }));
   res.json({ ok: true, deleted });
+});
+
+router.delete("/private-conversations/:userOneId/:userTwoId", async (req, res) => {
+  if (!hasPanel(req.user)) return res.status(403).json({ error: "Admin panel access required." });
+  if (!(await canDeletePrivateChats(req.user))) return res.status(403).json({ error: "Only higher staff can delete private chats." });
+  const userOneId = Number(req.params.userOneId);
+  const userTwoId = Number(req.params.userTwoId);
+  if (!userOneId || !userTwoId || userOneId === userTwoId) return res.status(400).json({ error: "Invalid private chat." });
+  const [result] = await pool.query(
+    `UPDATE private_messages
+     SET deleted_at = NOW()
+     WHERE deleted_at IS NULL
+       AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`,
+    [userOneId, userTwoId, userTwoId, userOneId]
+  );
+  await log(req.user.id, "delete_private_chat", "private_chat", null, `${userOneId}:${userTwoId}:${result.affectedRows || 0}`);
+  notifyUser(userOneId, "private-chat-deleted", { userOneId, userTwoId, by: req.user.id });
+  notifyUser(userTwoId, "private-chat-deleted", { userOneId, userTwoId, by: req.user.id });
+  res.json({ ok: true, deleted: result.affectedRows || 0 });
 });
 
 router.post("/permissions", async (req, res) => {
