@@ -135,7 +135,7 @@ async function initSchema() {
       about_me TEXT NULL,
       mood VARCHAR(80) DEFAULT '',
       theme VARCHAR(32) DEFAULT 'dark',
-      chat_background VARCHAR(40) DEFAULT '',
+      chat_background VARCHAR(40) DEFAULT 'moonlake',
       bubble_style VARCHAR(32) DEFAULT 'default',
       username_color VARCHAR(24) DEFAULT '',
       text_color VARCHAR(24) DEFAULT '',
@@ -448,7 +448,7 @@ async function migrateExistingTables() {
       about_me: "TEXT NULL",
       mood: "VARCHAR(80) DEFAULT ''",
       theme: "VARCHAR(32) DEFAULT 'dark'",
-      chat_background: "VARCHAR(40) DEFAULT ''",
+      chat_background: "VARCHAR(40) DEFAULT 'moonlake'",
       bubble_style: "VARCHAR(32) DEFAULT 'default'",
       username_color: "VARCHAR(24) DEFAULT ''",
       text_color: "VARCHAR(24) DEFAULT ''",
@@ -639,6 +639,7 @@ async function migrateExistingTables() {
       await ensureColumn(table, column, definition);
     }
   }
+  await query("ALTER TABLE users MODIFY COLUMN chat_background VARCHAR(40) DEFAULT 'moonlake'");
 
   const mediumTextColumns = {
     users: ["avatar_url", "banner_url", "animated_banner_url"],
@@ -729,6 +730,8 @@ async function migrateLegacyUserData() {
 }
 
 async function seedDefaults() {
+  await pool.query("UPDATE users SET chat_background = 'moonlake' WHERE chat_background IS NULL OR chat_background = ''");
+
   const [rooms] = await pool.query("SELECT COUNT(*) AS count FROM rooms");
   if (!rooms[0].count) {
     await pool.query(
