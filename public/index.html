@@ -43,7 +43,14 @@
           <input name="username" placeholder="Username" minlength="3" maxlength="18" required />
           <input name="email" type="email" placeholder="Email" required />
           <input name="password" type="password" placeholder="Password" minlength="6" required />
-          <label class="field-label">Date of birth<input name="dob" type="date" required /></label>
+          <label class="field-label">Date of birth
+            <span class="dob-selects" id="dobSelects">
+              <select id="dobDay" name="dobDay" aria-label="Day" required></select>
+              <select id="dobMonth" name="dobMonth" aria-label="Month" required></select>
+              <select id="dobYear" name="dobYear" aria-label="Year" required></select>
+            </span>
+            <input id="dobInput" name="dob" type="hidden" />
+          </label>
           <div class="gender-row">
             <label><input type="radio" name="gender" value="male" checked /> Male</label>
             <label><input type="radio" name="gender" value="female" /> Female</label>
@@ -135,7 +142,7 @@
       </aside>
     </section>
 
-    <div class="drawer hidden" id="drawer"><div class="drawer-head"><h2 id="drawerTitle"></h2><button id="closeDrawer" class="panel-close-button" title="Close" type="button"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="drawerBody"></div></div>
+    <div class="drawer hidden" id="drawer"><div class="drawer-head"><h2 id="drawerTitle"></h2><div class="drawer-actions" id="drawerActions"></div><button id="closeDrawer" class="panel-close-button" title="Close" type="button"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="drawerBody"></div></div>
 
     <dialog class="modal profile-modal" id="profileModal">
       <button class="modal-close" data-close-modal type="button">x</button>
