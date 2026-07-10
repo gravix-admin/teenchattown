@@ -52,6 +52,65 @@ async function columnExists(table, column) {
   return Boolean(rows[0].count);
 }
 
+async function ensureUniqueIndex(table, indexName, column) {
+  const [indexes] = await pool.query(
+    `SELECT INDEX_NAME
+     FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+       AND NON_UNIQUE = 0
+     LIMIT 1`,
+    [table, column]
+  );
+  if (indexes.length) return;
+  await query(`ALTER TABLE \`${table}\` ADD UNIQUE KEY \`${indexName}\` (\`${column}\`)`);
+}
+
+function legacyUsername(id, value) {
+  const suffix = `_${id}`;
+  const base = String(value || "user").trim().replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "") || "user";
+  return `${base.slice(0, Math.max(1, 18 - suffix.length))}${suffix}`;
+}
+
+async function normalizeUserIdentityColumn(column, normalize, fallback) {
+  const [rows] = await pool.query(`SELECT id, \`${column}\` AS value FROM users ORDER BY id`);
+  const seen = new Set();
+
+  for (const row of rows) {
+    const current = normalize(row.value);
+    let next = current;
+    if (!current || seen.has(current.toLowerCase())) {
+      next = fallback(row.id, current);
+      let counter = 2;
+      while (seen.has(next.toLowerCase())) {
+        next = fallback(`${row.id}_${counter}`, current);
+        counter += 1;
+      }
+    }
+
+    if (next !== row.value) {
+      await pool.query(`UPDATE users SET \`${column}\` = ? WHERE id = ?`, [next, row.id]);
+    }
+    seen.add(next.toLowerCase());
+  }
+}
+
+async function ensureUserIdentitiesAreUnique() {
+  await normalizeUserIdentityColumn(
+    "username",
+    (value) => String(value || "").trim(),
+    (id, value) => legacyUsername(id, value)
+  );
+  await normalizeUserIdentityColumn(
+    "email",
+    (value) => String(value || "").trim().toLowerCase(),
+    (id) => `user${id}@teens-town.local`
+  );
+  await ensureUniqueIndex("users", "unique_users_username", "username");
+  await ensureUniqueIndex("users", "unique_users_email", "email");
+}
+
 async function initSchema() {
   await query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -360,6 +419,7 @@ async function initSchema() {
   `);
 
   await migrateExistingTables();
+  await ensureUserIdentitiesAreUnique();
 
   await seedDefaults();
 }
@@ -730,14 +790,15 @@ async function seedDefaults() {
     }
   }
 
-  const [adminRows] = await pool.query("SELECT id FROM users WHERE username = 'admin'");
+  const [adminRows] = await pool.query("SELECT id FROM users WHERE LOWER(username) = 'admin'");
   if (!adminRows.length) {
     const hash = await bcrypt.hash("123456", 10);
+    const email = await unusedAdminEmail("test121@gmail.com");
     await pool.query(
       `INSERT INTO users
        (username, email, password_hash, dob, age, gender, rank_name, bio, about_me, xp, gold, diamonds, ip_address, country, frame, theme)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ["admin", "test121@gmail.com", hash, "2007-07-08", 19, "other", "developer", "Developer account.", "Master account for Teens Town Chat.", 5000, 99999, 9999, "local", "Auto detected", "developer", "premium"]
+      ["admin", email, hash, "2007-07-08", 19, "other", "developer", "Developer account.", "Master account for Teens Town Chat.", 5000, 99999, 9999, "local", "Auto detected", "developer", "premium"]
     );
   }
 
@@ -753,6 +814,19 @@ async function seedDefaults() {
       item
     );
   }
+}
+
+async function unusedAdminEmail(preferred) {
+  const candidates = [preferred, "admin@teens-town.local"];
+  for (let index = 2; index < 100; index += 1) {
+    candidates.push(`admin${index}@teens-town.local`);
+  }
+
+  for (const candidate of candidates) {
+    const [rows] = await pool.query("SELECT id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1", [candidate]);
+    if (!rows.length) return candidate;
+  }
+  return `admin${Date.now()}@teens-town.local`;
 }
 
 module.exports = { initSchema, ranks, staffTools };
