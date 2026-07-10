@@ -199,7 +199,7 @@ router.post("/me/avatar", requireAuth, avatarUpload.single("avatar"), async (req
 
 router.post("/me/banner", requireAuth, bannerUpload.single("banner"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Choose a banner image." });
-  const url = fileToDataUrl(req.file);
+  const url = fileToDataUrl(req.file); 
   await pool.query("UPDATE users SET banner_url = ? WHERE id = ?", [url, req.user.id]);
   res.json({ bannerUrl: url });
 });
