@@ -73,7 +73,6 @@
           <button id="friendIcon" title="Friend requests" type="button"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4 0-7 2-7 5v1h14v-1c0-3-3-5-7-5zm8-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg><em id="friendBadge" class="hidden"></em></button>
           <button id="notificationIcon" title="Notifications" type="button"><svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 1 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg><em id="notificationBadge" class="hidden"></em></button>
           <button id="reportFlagIcon" class="staff-only hidden" title="Reports" type="button"><svg viewBox="0 0 24 24"><path d="M5 21V4h10l1 2h4v10h-8l-1-2H7v7z"/></svg><em id="reportBadge" class="hidden"></em></button>
-          <button id="rightToggleButton" title="Users panel" type="button"><svg viewBox="0 0 24 24"><path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM7 13c-4 0-6 2.2-6 5v1h12v-1c0-2.8-2-5-6-5Zm10 .5c-1.1 0-2.1.2-2.9.6 1.2 1 1.9 2.4 1.9 3.9v1h7v-1c0-2.5-2-4.5-6-4.5Z"/></svg></button>
           <button id="profileButton" class="profile-button" type="button"><img id="topAvatar" alt="" /><span id="topName"></span></button>
         </nav>
       </header>
@@ -83,6 +82,8 @@
           <button data-view="rooms" type="button">Rooms</button>
           <button data-view="news" class="nav-news-button" type="button"><span>News</span><i id="newsBadge" class="menu-dot hidden" aria-hidden="true"></i></button>
           <button data-view="leaderboard" type="button">Leaderboard</button>
+          <button data-view="tournament" type="button">Tournament</button>
+          <button data-view="chatStore" type="button">Chat Store</button>
           <button data-view="vip" type="button">Buy S-VIP</button>
         </nav>
       </aside>
@@ -105,6 +106,7 @@
                 <span id="charCount" class="hidden">0/1200</span>
                 <button class="composer-icon" id="uploadMessageButton" type="button" title="Upload image"><svg viewBox="0 0 24 24"><path d="M5 5h3l1.5-2h5L16 5h3a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Zm7 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-2.2a2.8 2.8 0 1 1 0-5.6 2.8 2.8 0 0 1 0 5.6Z"/></svg></button>
                 <button class="composer-icon" id="voiceButton" type="button" title="Voice"><svg viewBox="0 0 24 24"><path d="M12 14a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v4a4 4 0 0 0 4 4Zm7-4h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-4.08A7 7 0 0 0 19 10Z"/></svg></button>
+                <button class="composer-icon users-toggle-button" id="rightToggleButton" title="Users panel" type="button"><svg viewBox="0 0 24 24"><path d="M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM7 13c-4 0-6 2.2-6 5v1h12v-1c0-2.8-2-5-6-5Zm10 .5c-1.1 0-2.1.2-2.9.6 1.2 1 1.9 2.4 1.9 3.9v1h7v-1c0-2.5-2-4.5-6-4.5Z"/></svg></button>
                 <button class="send icon-send" type="submit" title="Send"><svg viewBox="0 0 24 24"><path d="M2 21 23 12 2 3v7l13 2-13 2z"/></svg></button>
               </div>
               <div class="slash-suggestions hidden" id="slashSuggestions"></div>
@@ -123,8 +125,10 @@
 
         <section class="view" id="roomsView"><div class="panel rooms-panel"><div class="view-head"><h2>Rooms</h2><button data-close-view type="button">Close</button></div><div class="room-grid" id="roomGrid"></div></div></section>
         <section class="view" id="profilesView"><div class="panel"><h2>Profiles</h2><div class="profile-grid" id="profileGrid"></div></div></section>
-        <section class="view" id="newsView"><div class="panel news-panel"><div class="view-head"><h2>Town News <span id="newsTitleDot" class="inline-news-dot hidden" aria-hidden="true"></span></h2><button data-close-view type="button">Close</button></div><div id="newsList"></div></div></section>
+        <section class="view" id="newsView"><div class="panel news-panel"><div class="view-head"><h2>Town News <span id="newsTitleDot" class="inline-news-dot hidden" aria-hidden="true"></span></h2><div class="view-head-actions"><button id="newsComposeButton" class="news-add-button hidden" title="Post news" aria-label="Post news" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><button data-close-view type="button">Close</button></div></div><div id="newsComposerArea" class="news-compose-area hidden"></div><div id="newsList"></div></div></section>
         <section class="view" id="leaderboardView"><div class="panel"><div class="view-head"><h2>Leaderboard</h2><button data-close-view type="button">Close</button></div><div id="leaderboard"></div></div></section>
+        <section class="view" id="tournamentView"><div class="panel"><div class="view-head"><h2>Tournament</h2><button data-close-view type="button">Close</button></div><div class="empty-state"><strong>Tournament hub</strong><p class="muted">Tournament details will be added here later.</p></div></div></section>
+        <section class="view" id="chatStoreView"><div class="panel"><div class="view-head"><h2>Chat Store</h2><button data-close-view type="button">Close</button></div><div class="empty-state"><strong>Chat Store</strong><p class="muted">Store items will be added here later.</p></div></div></section>
         <section class="view" id="vipView"><div class="panel"><div class="view-head"><h2>Buy S-VIP</h2><button data-close-view type="button">Close</button></div><div class="vip-grid" id="vipGrid"></div></div></section>
         <section class="view" id="adminView"><div class="admin-dashboard" id="adminDashboard"></div></section>
       </main>
