@@ -5,6 +5,15 @@ const { requireAuth, canControl, isStaff, rankPower } = require("../middleware/a
 const { adminStats } = require("../services/userService");
 const { ranks, staffTools } = require("../services/schema");
 const { broadcast, notifyUser } = require("../services/events");
+const {
+  normalizeUsername,
+  normalizeEmail,
+  isValidUsername,
+  isValidEmail,
+  isDuplicateKeyError,
+  duplicateKeyMessage,
+  findUserIdentityConflict,
+} = require("../services/identity");
 
 const router = express.Router();
 
@@ -83,8 +92,20 @@ router.patch("/users/:id", async (req, res) => {
     if (!canControl(req.user.rank_name, req.body.rank)) return res.status(403).json({ error: "You cannot assign that rank." });
     updates.rank_name = req.body.rank;
   }
-  if (req.body.username && await permission(req.user, "changeRank")) updates.username = String(req.body.username).slice(0, 32);
-  if (req.body.email && await permission(req.user, "changeRank")) updates.email = String(req.body.email).slice(0, 120);
+  if (req.body.username && await permission(req.user, "changeRank")) {
+    const username = normalizeUsername(req.body.username);
+    if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-18 letters, numbers, or underscores." });
+    const conflict = await findUserIdentityConflict(pool, { username, excludeId: target.id });
+    if (conflict.username) return res.status(409).json({ error: "This username is already taken." });
+    updates.username = username;
+  }
+  if (req.body.email && await permission(req.user, "changeRank")) {
+    const email = normalizeEmail(req.body.email);
+    if (!isValidEmail(email)) return res.status(400).json({ error: "Enter a valid email." });
+    const conflict = await findUserIdentityConflict(pool, { email, excludeId: target.id });
+    if (conflict.email) return res.status(409).json({ error: "This email is already taken." });
+    updates.email = email;
+  }
   if (await permission(req.user, "editProfile")) {
     if (req.body.displayName !== undefined) updates.display_name = String(req.body.displayName).slice(0, 40);
     if (req.body.mood !== undefined) updates.mood = String(req.body.mood).slice(0, 80);
@@ -96,7 +117,12 @@ router.patch("/users/:id", async (req, res) => {
   if (req.body.xp !== undefined) updates.xp = Number(req.body.xp);
   const entries = Object.entries(updates);
   if (entries.length) {
-    await pool.query(`UPDATE users SET ${entries.map(([key]) => `${key} = ?`).join(", ")} WHERE id = ?`, [...entries.map(([, value]) => value), target.id]);
+    try {
+      await pool.query(`UPDATE users SET ${entries.map(([key]) => `${key} = ?`).join(", ")} WHERE id = ?`, [...entries.map(([, value]) => value), target.id]);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) return res.status(409).json({ error: duplicateKeyMessage(error) });
+      throw error;
+    }
   }
   await log(req.user.id, "update_user", "user", target.id, JSON.stringify(updates));
   broadcast("users-changed", { userId: target.id });
