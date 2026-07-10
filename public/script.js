@@ -23,6 +23,7 @@ const state = {
   leaderboardTab: "xp",
   compactLayout: null,
   pmExpanded: false,
+  permissions: {},
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -45,15 +46,8 @@ const giftCatalog = [
   ["diamond", "Diamond", 500],
 ];
 const emojiChoices = ["😀", "😂", "😊", "😍", "🥰", "😎", "😭", "😡", "👍", "👎", "👏", "🙏", "💀", "🔥", "✨", "❤️", "💙", "💎", "👑", "🎉", "🌙", "⭐", "😴", "🤝"];
-const themeChoices = [
-  ["dark", "Dark", "#0b1020"],
-  ["light", "Light", "#f8fafc"],
-  ["blue", "Blue", "#0f3a5d"],
-  ["neon", "Neon", "#111827"],
-  ["glass", "Glass", "#223044"],
-];
+const defaultRoomBackground = "moonlake";
 const roomBackgroundChoices = [
-  ["", "Room default", "/assets/room-main.svg"],
   ["moonlake", "Moon Lake", "/assets/room-bg-moonlake.webp"],
   ["autumn", "Autumn Trail", "/assets/room-bg-autumn.webp"],
   ["neon-city", "Neon Rain", "/assets/room-bg-neon-city.webp"],
@@ -250,14 +244,56 @@ function cssUrl(value) {
   return `url(${JSON.stringify(value)})`;
 }
 
+function assetUrl(value) {
+  if (!value || /^(data:|blob:|https?:\/\/|\/)/i.test(value)) return value;
+  return `/${value.replace(/^\.?\//, "")}`;
+}
+
 function currentRoomImage() {
   const room = state.rooms.find((item) => Number(item.id) === Number(state.currentRoomId));
   return room?.image_url || room?.imageUrl || "/assets/room-main.svg";
 }
 
-function applyRoomBackground() {
-  const selected = roomBackgroundUrls[state.me?.chatBackground || ""];
-  document.body.style.setProperty("--room-image", cssUrl(selected || currentRoomImage()));
+function normalizeRoomBackground(value) {
+  return roomBackgroundUrls[value] ? value : defaultRoomBackground;
+}
+
+function applyRoomBackground(value = state.me?.chatBackground) {
+  const backgroundId = normalizeRoomBackground(value);
+  const selected = assetUrl(roomBackgroundUrls[backgroundId] || roomBackgroundUrls[defaultRoomBackground] || currentRoomImage());
+  const image = cssUrl(selected);
+  document.documentElement.style.setProperty("--room-image", image);
+  document.body.style.setProperty("--room-image", image);
+  const messages = $("#messages");
+  if (messages) {
+    messages.dataset.roomBackground = backgroundId;
+    messages.style.setProperty("--room-image", image);
+    messages.style.backgroundColor = "#07111f";
+    messages.style.backgroundImage = `linear-gradient(180deg, rgba(6, 10, 18, .38), rgba(6, 10, 18, .56)), ${image}`;
+    messages.style.backgroundPosition = "center center, center center";
+    messages.style.backgroundRepeat = "no-repeat, no-repeat";
+    messages.style.backgroundSize = "cover, cover";
+  }
+}
+
+function hasTool(tool) {
+  return state.me?.rank === "developer" || Boolean(state.permissions?.[tool]);
+}
+
+function canPostNews() {
+  return hasTool("postNews");
+}
+
+function syncNewsComposerAccess() {
+  const allowed = canPostNews();
+  $("#newsComposeButton")?.classList.toggle("hidden", !allowed);
+  if (!allowed) {
+    const composer = $("#newsComposerArea");
+    if (composer) {
+      composer.classList.add("hidden");
+      composer.innerHTML = "";
+    }
+  }
 }
 
 function setTypingIdle() {
@@ -308,11 +344,13 @@ function openEmojiPicker(inputSelector, anchor) {
 async function bootstrap() {
   const data = await api("/api/auth/me");
   state.me = data.me;
+  if (state.me) state.me.chatBackground = normalizeRoomBackground(state.me.chatBackground);
   state.rooms = data.rooms;
   state.users = data.users;
   state.notifications = data.notifications || [];
   state.friendRequests = data.friendRequests || [];
   state.rankBadges = data.rankBadges || {};
+  state.permissions = data.permissions || {};
   state.unreadPm = Number(data.unreadPm || 0);
   state.currentRoomId = state.currentRoomId || state.rooms[0]?.id;
   $("#authScreen").classList.add("hidden");
@@ -322,6 +360,7 @@ async function bootstrap() {
   $("#topAvatar").src = avatar(state.me);
   $("#reportFlagIcon").classList.toggle("hidden", !staffRanks.has(state.me.rank));
   setBadges();
+  syncNewsComposerAccess();
   refreshReportBadge().catch(() => {});
   renderRooms();
   renderUsers();
@@ -504,6 +543,7 @@ function renderMessageBody(body) {
 
 function closeMessageMenus() {
   $$(".message-menu").forEach((menu) => menu.classList.add("hidden"));
+  $$(".message.menu-open").forEach((message) => message.classList.remove("menu-open"));
 }
 
 function renderSlashSuggestions() {
@@ -531,6 +571,7 @@ function bindMessageActions() {
     const wasHidden = menu.classList.contains("hidden");
     closeMessageMenus();
     menu.classList.toggle("hidden", !wasHidden);
+    button.closest(".message")?.classList.toggle("menu-open", wasHidden);
   }));
   $$(".message-menu").forEach((menu) => menu.addEventListener("click", () => closeMessageMenus()));
   $$(".message-card", $("#messages")).forEach((card) => {
@@ -711,6 +752,7 @@ function renderVip() {
 
 async function renderNews() {
   if ($("#newsView").classList.contains("active")) clearNewsUnread();
+  syncNewsComposerAccess();
   const posts = await api("/api/social/news");
   $("#newsList").innerHTML = posts.map((post) => `
     <article class="news-card">
@@ -745,6 +787,90 @@ async function renderNews() {
     await api(`/api/social/news/${form.dataset.newsComment}/comments`, { method: "POST", body: JSON.stringify({ body }) });
     await renderNews();
   }));
+}
+
+async function submitNewsForm(form) {
+  await api("/api/social/news", { method: "POST", body: new FormData(form) });
+  toast("News posted.");
+  form.reset();
+  const composer = $("#newsComposerArea");
+  if (composer) {
+    composer.classList.add("hidden");
+    composer.innerHTML = "";
+  }
+  if ($("#newsView").classList.contains("active")) await renderNews();
+}
+
+function openNewsComposer() {
+  if (!canPostNews()) {
+    toast("Your rank cannot post news.");
+    return;
+  }
+  const composer = $("#newsComposerArea");
+  if (!composer) return;
+  composer.innerHTML = `
+    <form id="quickNewsForm" class="news-compose-card">
+      <label>Topic<input name="title" maxlength="120" placeholder="Town update" required /></label>
+      <label>Description<textarea name="body" maxlength="2000" placeholder="Write the news..." required></textarea></label>
+      <label>Upload file<input name="image" type="file" accept="image/*" /></label>
+      <article id="newsComposerPreview" class="news-card news-compose-preview hidden">
+        <div class="news-art"><span>TCT</span></div>
+        <div><span class="eyebrow">Preview</span><h3></h3><p></p></div>
+      </article>
+      <div class="news-compose-actions">
+        <button class="primary" type="submit">Post news</button>
+        <button data-news-compose-close type="button">Cancel</button>
+      </div>
+    </form>
+  `;
+  composer.classList.remove("hidden");
+  composer.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const form = $("#quickNewsForm");
+  const preview = $("#newsComposerPreview");
+  const titleInput = form.elements.title;
+  const bodyInput = form.elements.body;
+  const imageInput = form.elements.image;
+  let previewUrl = "";
+  const updatePreview = () => {
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+    const file = imageInput.files?.[0];
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = file ? URL.createObjectURL(file) : "";
+    preview.classList.toggle("hidden", !title && !body && !file);
+    $("h3", preview).textContent = title || "Town update";
+    $("p", preview).textContent = body || "Your announcement will appear here.";
+    const media = previewUrl
+      ? `<img src="${html(previewUrl)}" alt="" />`
+      : `<div class="news-art"><span>TCT</span></div>`;
+    preview.firstElementChild.outerHTML = media;
+  };
+  ["input", "change"].forEach((eventName) => form.addEventListener(eventName, updatePreview));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submitButton = form.querySelector("button[type='submit']");
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Posting...";
+    }
+    try {
+      await submitNewsForm(event.currentTarget);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      if (submitButton?.isConnected) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Post news";
+      }
+    }
+  });
+  $("[data-news-compose-close]", form).addEventListener("click", () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    composer.classList.add("hidden");
+    composer.innerHTML = "";
+  });
+  titleInput.focus();
 }
 
 async function renderLeaderboard() {
@@ -1307,29 +1433,17 @@ function openLevelPanel() {
 }
 
 function openChatOptionsPanel() {
-  const current = localStorage.getItem("tct_theme") || document.body.dataset.theme || "dark";
-  const currentBackground = state.me?.chatBackground || "";
-  const defaultRoomImage = currentRoomImage();
+  const currentBackground = normalizeRoomBackground(state.me?.chatBackground);
   setDrawerChrome({ title: "Chat options" });
   $("#drawerBody").innerHTML = `
     <div class="theme-panel">
-      <h3>Theme</h3>
-      <p class="muted">Choose how the chat feels on your screen.</p>
-      <div class="theme-choice-grid">
-        ${themeChoices.map(([id, label, color]) => `
-          <button class="${id === current ? "active" : ""}" data-theme-choice="${id}" type="button">
-            <span style="background:${html(color)}"></span>
-            <strong>${html(label)}</strong>
-          </button>
-        `).join("")}
-      </div>
       <h3>Room background</h3>
+      <p class="muted">Choose the room image shown behind chat.</p>
       <div class="background-choice-grid">
         ${roomBackgroundChoices.map(([id, label, url]) => {
-          const preview = id ? url : defaultRoomImage;
           return `
             <button class="${id === currentBackground ? "active" : ""}" data-room-background="${html(id)}" type="button">
-              <span style="background-image:url('${html(preview)}')"></span>
+              <span style="background-image:url('${html(url)}')"></span>
               <strong>${html(label)}</strong>
             </button>
           `;
@@ -1338,18 +1452,14 @@ function openChatOptionsPanel() {
     </div>
   `;
   showDrawer();
-  $$("[data-theme-choice]").forEach((button) => button.addEventListener("click", () => {
-    applyTheme(button.dataset.themeChoice);
-    $$("[data-theme-choice]").forEach((node) => node.classList.toggle("active", node === button));
-    toast(`${button.textContent.trim()} theme applied.`);
-  }));
   $$("[data-room-background]").forEach((button) => button.addEventListener("click", async () => {
-    const chatBackground = button.dataset.roomBackground || "";
+    const chatBackground = normalizeRoomBackground(button.dataset.roomBackground);
     button.disabled = true;
     try {
       const data = await api("/api/auth/me", { method: "PATCH", body: JSON.stringify({ chatBackground }) });
-      state.me = data.me || { ...state.me, chatBackground };
-      applyRoomBackground();
+      state.me = { ...state.me, ...(data.me || {}), chatBackground };
+      state.me.chatBackground = normalizeRoomBackground(state.me.chatBackground);
+      applyRoomBackground(chatBackground);
       $$("[data-room-background]").forEach((node) => node.classList.toggle("active", node === button));
       toast(`${button.textContent.trim()} background applied.`);
     } catch (error) {
@@ -1825,14 +1935,6 @@ async function renderAdmin() {
       <article class="stat-card"><strong>${data.stats.rooms}</strong><span>Rooms</span></article>
       <article class="stat-card"><strong>${data.stats.openReports}</strong><span>Open reports</span></article>
     </div>
-    <section class="panel admin-panel"><h2>Post news</h2>
-      <form id="adminNewsForm" class="news-form">
-        <input name="title" placeholder="News title" required />
-        <input name="imageUrl" placeholder="Optional image URL" />
-        <textarea name="body" placeholder="Write the announcement, event, or site update" required></textarea>
-        <button class="primary" type="submit">Publish news</button>
-      </form>
-    </section>
     <section class="panel admin-panel"><h2>Create room</h2>
       <form id="adminCreateRoom" class="room-create-form">
         <input name="name" placeholder="Room name" required />
@@ -1882,13 +1984,6 @@ async function renderAdmin() {
   `;
   $("#adminRefresh").addEventListener("click", renderAdmin);
   $("#adminClose").addEventListener("click", () => setView("chat"));
-  $("#adminNewsForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await api("/api/admin/news", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
-    toast("News posted.");
-    event.currentTarget.reset();
-    if ($("#newsView").classList.contains("active")) await renderNews();
-  });
   $("#adminCreateRoom").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1990,9 +2085,13 @@ function connectEvents() {
   state.eventSource.addEventListener("users-changed", async () => {
     const data = await api("/api/auth/me");
     state.me = data.me;
+    if (state.me) state.me.chatBackground = normalizeRoomBackground(state.me.chatBackground);
     state.users = data.users;
     state.notifications = data.notifications || state.notifications;
+    state.permissions = data.permissions || state.permissions || {};
     state.unreadPm = Number(data.unreadPm || state.unreadPm || 0);
+    applyRoomBackground();
+    syncNewsComposerAccess();
     renderUsers();
     renderProfiles();
     if ($("#leaderboardView").classList.contains("active")) renderLeaderboard().catch((error) => toast(error.message));
@@ -2142,6 +2241,7 @@ function bindEvents() {
     event.stopPropagation();
     openReportQueueDrawer().catch((error) => toast(error.message));
   });
+  $("#newsComposeButton")?.addEventListener("click", openNewsComposer);
   $("#menuButton").addEventListener("click", () => $("#app").classList.toggle("nav-open"));
   $("#roomSwitchButton")?.addEventListener("click", openRoomSwitcher);
   $("#rightToggleButton").addEventListener("click", () => $("#app").classList.toggle("right-closed"));
